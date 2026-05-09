@@ -1,0 +1,19 @@
+{
+  "name": "aura-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -c \"cyan,magenta,yellow\" -n \"api,worker,console\" \"npm run dev -w api\" \"npm run dev -w worker\" \"npm run dev -w operator-console\"",
+    "build": "tsc -b",
+    "db:generate": "npm run db:generate -w @aura/database",
+    "db:push": "npm run db:push -w @aura/database",
+    "load-test": "npm run load-test -w apps/worker"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

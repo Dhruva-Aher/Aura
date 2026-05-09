@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "operator-console",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "/Users/dhruv/.gemini/antigravity/scratch/aura/apps/operator-console",
+      "port": 5173
+    }
+  ]
+}

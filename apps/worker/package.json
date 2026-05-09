@@ -1,0 +1,19 @@
+{
+  "name": "worker",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -b",
+    "load-test": "tsx src/load-test.ts"
+  },
+  "dependencies": {
+    "@aura/database": "*",
+    "@aura/redis": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.7.2",
+    "typescript": "^5.0.0"
+  }
+}

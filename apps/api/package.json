@@ -1,0 +1,23 @@
+{
+  "name": "api",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@aura/database": "*",
+    "@aura/redis": "*",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.0.0",
+    "tsx": "^4.7.2",
+    "typescript": "^5.0.0"
+  }
+}

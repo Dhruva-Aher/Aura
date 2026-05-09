@@ -1,0 +1,132 @@
+export const SCRIPTS = {
+  CLAIM_JOB: `
+    local job = redis.call('zpopmax', KEYS[1])
+    if #job == 0 then return nil end
+    local jobId = job[1]
+    local priority = job[2]
+    local leaseExpiry = ARGV[1]
+    redis.call('zadd', KEYS[2], leaseExpiry, jobId)
+    return {jobId, priority}
+  `,
+
+  PROMOTE_JOBS: `
+    local jobs = redis.call('zrangebyscore', KEYS[1], 0, ARGV[1])
+    for _, jobId in ipairs(jobs) do
+      local priority = redis.call('hget', KEYS[3] .. jobId, 'priority') or 0
+      local targetQueue = redis.call('hget', KEYS[3] .. jobId, 'queue') or 'default'
+      local activeKey = KEYS[2]
+      if targetQueue == 'high' then
+        activeKey = KEYS[4]
+      elseif targetQueue == 'low' then
+        activeKey = KEYS[5]
+      end
+      redis.call('zrem', KEYS[1], jobId)
+      redis.call('zadd', activeKey, priority, jobId)
+    end
+    return #jobs
+  `,
+
+  REAP_JOBS: `
+    local expired = redis.call('zrangebyscore', KEYS[1], 0, ARGV[1])
+    local reaped = {}
+    for _, jobId in ipairs(expired) do
+      local attempts = redis.call('hincrby', KEYS[3] .. jobId, 'attempts', 1)
+      local max = tonumber(redis.call('hget', KEYS[3] .. jobId, 'maxAttempts') or 3)
+      redis.call('zrem', KEYS[1], jobId)
+      if attempts < max then
+        local priority = redis.call('hget', KEYS[3] .. jobId, 'priority') or 0
+        local targetQueue = redis.call('hget', KEYS[3] .. jobId, 'queue') or 'default'
+        local activeKey = KEYS[2]
+        if targetQueue == 'high' then
+          activeKey = KEYS[4]
+        elseif targetQueue == 'low' then
+          activeKey = KEYS[5]
+        end
+        redis.call('zadd', activeKey, priority, jobId)
+        table.insert(reaped, {jobId, 'REQUEUED'})
+      else
+        table.insert(reaped, {jobId, 'DEAD_LETTER'})
+      end
+    end
+    return reaped
+  `,
+
+  COMPLETE_JOB: `
+    redis.call('zrem', KEYS[1], ARGV[1])
+    redis.call('del', KEYS[2] .. ARGV[1])
+    return 1
+  `,
+
+  FAIL_JOB: `
+    local jobId = ARGV[1]
+    local now = tonumber(ARGV[2])
+    local attempts = redis.call('hincrby', KEYS[3] .. jobId, 'attempts', 1)
+    local max = tonumber(redis.call('hget', KEYS[3] .. jobId, 'maxAttempts') or 3)
+    redis.call('zrem', KEYS[1], jobId)
+    if attempts < max then
+      local backoffMs = math.min(math.pow(2, attempts - 1) * 1000, 60000)
+      local jitter = math.random(0, math.max(1, math.floor(backoffMs * 0.1)))
+      local delay = now + backoffMs + jitter
+      redis.call('zadd', KEYS[6], delay, jobId)
+      return 'REQUEUED'
+    else
+      return 'DEAD_LETTER'
+    end
+  `,
+
+  REPLAY_DLQ: `
+    local jobId = ARGV[1]
+    local priority = redis.call('hget', KEYS[2] .. jobId, 'priority') or 0
+    redis.call('hset', KEYS[2] .. jobId, 'attempts', 0)
+    redis.call('zadd', KEYS[1], priority, jobId)
+    return 1
+  `,
+
+  DISCARD_DLQ: `
+    local jobId = ARGV[1]
+    redis.call('del', KEYS[1] .. jobId)
+    return 1
+  `,
+
+  ADMISSION_GATE: `
+    local threshold = tonumber(ARGV[1])
+    local rateLimit = tonumber(ARGV[2])
+    local rateTtl = tonumber(ARGV[3])
+    local reserveTtl = tonumber(ARGV[4])
+
+    local reservations = tonumber(redis.call('get', KEYS[6]) or '0')
+    local queued = redis.call('zcard', KEYS[1]) + redis.call('zcard', KEYS[2]) + redis.call('zcard', KEYS[3]) + redis.call('zcard', KEYS[4])
+    local projected = queued + reservations
+
+    if projected >= threshold then
+      return {'REJECT_QUEUE', tostring(projected)}
+    end
+
+    local rate = redis.call('incr', KEYS[5])
+    if rate == 1 then
+      redis.call('expire', KEYS[5], rateTtl)
+    end
+    if rate > rateLimit then
+      return {'REJECT_RATE', tostring(rate)}
+    end
+
+    local token = redis.call('incr', KEYS[6])
+    if token == 1 then
+      redis.call('expire', KEYS[6], reserveTtl)
+    end
+    return {'ACCEPT', tostring(token), tostring(projected)}
+  `,
+
+  RELEASE_ADMISSION: `
+    local current = tonumber(redis.call('get', KEYS[1]) or '0')
+    if current <= 0 then return 0 end
+    return redis.call('decr', KEYS[1])
+  `,
+
+  RENEW_LEASE: `
+    local current = redis.call('zscore', KEYS[1], ARGV[1])
+    if current == false then return 0 end
+    redis.call('zadd', KEYS[1], ARGV[2], ARGV[1])
+    return 1
+  `
+};
