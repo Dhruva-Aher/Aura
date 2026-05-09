@@ -124,7 +124,7 @@ export class QueueService {
       });
 
       const queueRaw = await redis.hget(`aura:meta:${job.id}`, 'queue');
-      const queueName = (queueRaw === 'high' || queueRaw === 'low' || queueRaw === 'default') ? queueRaw : queueFromInput(undefined, job.priority);
+      const queueName: keyof typeof QUEUE_KEYS = (queueRaw === 'high' || queueRaw === 'low' || queueRaw === 'default') ? queueRaw : queueFromInput(undefined, job.priority);
       await redis.zadd(QUEUE_KEYS[queueName], job.priority, job.id);
       await redis.hset(`aura:meta:${job.id}`, {
         priority: job.priority,

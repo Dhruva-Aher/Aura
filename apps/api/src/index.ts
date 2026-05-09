@@ -40,7 +40,7 @@ setInterval(async () => {
 
 // Distributed event bridge: worker processes publish to Redis PubSub.
 redisSub.subscribe('aura:events').then(() => {
-  redisSub.on('message', (_channel, payload) => {
+  redisSub.on('message', (_channel: string, payload: string) => {
     try {
       const evt = JSON.parse(payload);
       if (!evt?.type) return;
@@ -52,7 +52,7 @@ redisSub.subscribe('aura:events').then(() => {
       console.error('Event bridge parse error:', err);
     }
   });
-}).catch((err) => {
+}).catch((err: unknown) => {
   console.error('Failed to subscribe to aura:events:', err);
 });
 
