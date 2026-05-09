@@ -2,7 +2,7 @@
   "name": "@aura/redis",
   "version": "1.0.0",
   "main": "src/index.ts",
-  "types": "dist/index.d.ts",
+  "types": "src/index.ts",
   "scripts": {
     "build": "tsc"
   },
