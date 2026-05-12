@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { QueueService, redis } from '../services/QueueService';
+import { AdaptiveThreshold } from '../services/AdaptiveThreshold';
 import { prisma } from '@aura/database';
 
 const router = Router();
@@ -8,6 +9,9 @@ const queueService = new QueueService();
 const MAX_PAGE_SIZE = 200;
 const MAX_QUEUE_THRESHOLD = Number(process.env.MAX_QUEUE_THRESHOLD || 10000);
 const ENQUEUE_RATE_LIMIT_PER_SEC = Number(process.env.ENQUEUE_RATE_LIMIT_PER_SEC || 200);
+
+// Adaptive backpressure — threshold adjusts with observed drain rate.
+const adaptiveThreshold = AdaptiveThreshold.fromEnv();
 
 // Counters are stored in Redis so they survive process restarts and are
 // visible across multiple API replicas.  The in-process variables are gone.
@@ -40,10 +44,18 @@ router.post('/', async (req, res) => {
   try {
     const data = CreateJobSchema.parse(req.body);
 
+    // Compute effective threshold — adapts to observed drain rate.
+    // Falls back to MAX_QUEUE_THRESHOLD when there is no throughput data yet.
+    const now = Date.now();
+    const threshold = await adaptiveThreshold.getThreshold(
+      (windowMs) => redis.zcount('aura:metrics:throughput', now - windowMs, now),
+      now,
+    );
+
     // Use the shared admissionGate custom command — single source of truth
     // for the Lua script (packages/redis/src/lua.ts ADMISSION_GATE).
     // rateKey rotates every second so the counter resets per second naturally.
-    const rateKey = `aura:ratelimit:enqueue:${Math.floor(Date.now() / 1000)}`;
+    const rateKey = `aura:ratelimit:enqueue:${Math.floor(now / 1000)}`;
     const [decision, info] = await redis.admissionGate(
       'aura:queue:high',
       'aura:queue:default',
@@ -51,7 +63,7 @@ router.post('/', async (req, res) => {
       'aura:delayed',
       rateKey,
       'aura:backpressure:reservations',
-      MAX_QUEUE_THRESHOLD,
+      threshold,                   // dynamic, not static
       ENQUEUE_RATE_LIMIT_PER_SEC,
       2,   // rate window TTL in seconds
       30   // reservation TTL in seconds
@@ -65,7 +77,7 @@ router.post('/', async (req, res) => {
     if (decision === 'REJECT_QUEUE') {
       redis.incr(BP_REJECTED_KEY).catch(() => {});
       res.setHeader('Retry-After', '5');
-      return res.status(429).json({ error: `queue full — ${info}/${MAX_QUEUE_THRESHOLD} jobs queued` });
+      return res.status(429).json({ error: `queue full — ${info}/${threshold} jobs queued (drain rate: ${adaptiveThreshold.lastDrainRatePerSec.toFixed(1)}/s)` });
     }
 
     admissionAccepted = true;
