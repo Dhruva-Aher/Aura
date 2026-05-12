@@ -1,2 +1,2 @@
 [phases.build]
-cmds = ["npm run build"]
+cmds = ["npm run db:generate"]
