@@ -69,24 +69,28 @@ export async function buildMetricsOverview() {
       .map((j) => j.startedAt!.getTime() - j.scheduledFor.getTime())
       .filter((ms) => ms >= 0);
 
-  const p95FromLatencies = (latenciesMs: number[]) => {
+  // Generic percentile helper — returns value in seconds (1 decimal).
+  // p is a fraction 0–1 (e.g. 0.95 for P95).
+  const percentileFromLatencies = (latenciesMs: number[], p: number): number => {
     if (!latenciesMs.length) return 0;
-    const durations = [...latenciesMs].sort((a, b) => a - b);
-    const idx = Math.floor(durations.length * 0.95);
-    return Math.round(((durations[idx] ?? 0) / 100)) / 10;
+    const sorted = [...latenciesMs].sort((a, b) => a - b);
+    const idx = Math.min(Math.floor(sorted.length * p), sorted.length - 1);
+    return Math.round(((sorted[idx] ?? 0) / 100)) / 10;
   };
   const p95FromEncodedDurations = (rows: string[]) => {
     if (!rows.length) return 0;
     const durations = rows.map((r) => parseInt(r.split(':')[0] || '0', 10)).filter((d) => d >= 0).sort((a, b) => a - b);
     if (!durations.length) return 0;
-    const idx = Math.floor(durations.length * 0.95);
+    const idx = Math.min(Math.floor(durations.length * 0.95), durations.length - 1);
     return Math.round(((durations[idx] ?? 0) / 100)) / 10;
   };
 
   const currentQueueLatencies = toQueueLatenciesMs(startedJobsRecent);
   const previousQueueLatencies = toQueueLatenciesMs(startedJobsPrevRecent);
-  const p95Latency = p95FromLatencies(currentQueueLatencies);
-  const prevP95Latency = p95FromLatencies(previousQueueLatencies);
+  const p50Latency = percentileFromLatencies(currentQueueLatencies, 0.50);
+  const p95Latency = percentileFromLatencies(currentQueueLatencies, 0.95);
+  const p99Latency = percentileFromLatencies(currentQueueLatencies, 0.99);
+  const prevP95Latency = percentileFromLatencies(previousQueueLatencies, 0.95);
 
   const throughput = Number((completed1h / 60).toFixed(2));
   const prevThroughput = Number((completedPrev1h / 60).toFixed(2));
@@ -111,7 +115,9 @@ export async function buildMetricsOverview() {
     completed: { value: completed, change: 0, trend: 'up' as const },
     failed: { value: failed, change: 0, trend: 'flat' as const },
     delayed: { value: delayed, trend: 'flat' as const },
+    p50Latency,
     p95Latency,
+    p99Latency,
     latencyChange,
     throughput,
     throughputChange,
