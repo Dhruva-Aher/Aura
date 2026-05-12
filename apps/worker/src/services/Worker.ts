@@ -2,6 +2,7 @@ import { prisma, Prisma } from '@aura/database';
 import { createRedisClient } from '@aura/redis';
 import { randomUUID } from 'crypto';
 import os from 'os';
+import { FailureInjector } from './FailureInjector';
 
 const redis = createRedisClient();
 const WORKER_ID = randomUUID();
@@ -25,11 +26,17 @@ export class Worker {
   private concurrency: number;
   private activeJobs: number = 0;
   private claimMisses = 0;
+  private injector: FailureInjector;
 
-  constructor(pool: string = 'default', concurrency: number = 20) {
-    this.id = `worker-${WORKER_ID.substring(0, 8)}`;
-    this.pool = pool;
+  constructor(
+    pool: string = 'default',
+    concurrency: number = 20,
+    injector: FailureInjector = new FailureInjector(),
+  ) {
+    this.id       = `worker-${WORKER_ID.substring(0, 8)}`;
+    this.pool     = pool;
     this.concurrency = concurrency;
+    this.injector = injector;
   }
 
   async start() {
@@ -206,15 +213,22 @@ export class Worker {
 
       // --- EXECUTE TASK ---
       console.log(`[${this.id}] Executing job: ${job.name} (${jobId})`);
-      await new Promise(r => setTimeout(r, Math.random() * 2000 + 500));
+      await this.injector.simulateExecution();
 
-      // Deterministic failure: generator (or any caller) can set shouldFail=true in payload.
+      // Deterministic failure: generator (or any caller) can set shouldFail=true
+      // in the job payload.  FailureInjector adds env-driven chaos on top.
       const payload = job.payload as Record<string, unknown> | null;
       if (payload?.shouldFail === true) {
         throw new Error('Injected failure (shouldFail=true in payload)');
       }
-      if (Math.random() < 0.1) {
-        throw new Error('Simulated random failure');
+      if (this.injector.shouldFail()) {
+        throw new Error(`Injected failure [mode=${this.injector.config.mode}]`);
+      }
+      // Crash mode: simulate abrupt process death so the lease expires and the
+      // reaper proves the recovery path (reap → delayed → retry).
+      if (this.injector.shouldCrash()) {
+        console.error(`[${this.id}] Simulating process crash mid-job ${jobId} — exiting`);
+        process.exit(1);
       }
       // --- END EXECUTE ---
 

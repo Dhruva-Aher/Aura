@@ -17,6 +17,7 @@
 import { Worker } from './services/Worker';
 import { Scheduler } from './services/Scheduler';
 import { SchedulerLock } from './services/SchedulerLock';
+import { FailureInjector } from './services/FailureInjector';
 import { JobGenerator } from './jobGenerator';
 import { createRedisClient } from '@aura/redis';
 
@@ -28,11 +29,14 @@ async function bootstrap() {
   const lowWorkers     = Math.max(Number(process.env.LOW_WORKERS      || 1), 0);
   const concurrency    = Math.max(Number(process.env.WORKER_CONCURRENCY || 20), 1);
 
+  // ── Failure injection (shared across all workers in this process) ────────
+  const injector = FailureInjector.fromEnv();
+
   // ── Start job-worker pool ─────────────────────────────────────────────────
   const workers: Worker[] = [];
-  for (let i = 0; i < defaultWorkers;  i++) workers.push(new Worker('default',       concurrency));
-  for (let i = 0; i < highWorkers;     i++) workers.push(new Worker('high-priority', concurrency));
-  for (let i = 0; i < lowWorkers;      i++) workers.push(new Worker('low-priority',  concurrency));
+  for (let i = 0; i < defaultWorkers;  i++) workers.push(new Worker('default',       concurrency, injector));
+  for (let i = 0; i < highWorkers;     i++) workers.push(new Worker('high-priority', concurrency, injector));
+  for (let i = 0; i < lowWorkers;      i++) workers.push(new Worker('low-priority',  concurrency, injector));
   for (const w of workers) await w.start();
 
   // ── Scheduler leader election ─────────────────────────────────────────────
@@ -92,6 +96,7 @@ async function bootstrap() {
     console.log(`[Bootstrap] Received ${signal} — shutting down gracefully`);
     generator?.stop();
     scheduler.stop();
+    injector.stop();
     await lock.release();        // releases the lock immediately so a peer can take over
     for (const w of workers) await w.stop();
     await redis.quit().catch(() => {});
