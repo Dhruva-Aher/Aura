@@ -132,6 +132,13 @@ export const SCRIPTS = {
     return 1
   `,
 
+  // Idempotency fence — atomically claims the execution slot for one job attempt.
+  // KEYS[1] = aura:executing:<jobId>   ARGV[1] = workerId   ARGV[2] = TTL seconds
+  // Returns 'OK' if this worker won the slot, null if already claimed.
+  CLAIM_EXECUTION: `
+    return redis.call('set', KEYS[1], ARGV[1], 'NX', 'EX', tonumber(ARGV[2]))
+  `,
+
   // Scheduler leader-election helpers.
   // RENEW_SCHEDULER_LOCK — only renew if this instance still holds the lock.
   // KEYS[1]=lock key  ARGV[1]=instanceId  ARGV[2]=TTL seconds

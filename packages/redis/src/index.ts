@@ -16,6 +16,7 @@ export const createRedisClient = (url: string = process.env.REDIS_URL || 'redis:
   client.defineCommand('renewLease', { numberOfKeys: 1, lua: SCRIPTS.RENEW_LEASE });
   client.defineCommand('renewSchedulerLock', { numberOfKeys: 1, lua: SCRIPTS.RENEW_SCHEDULER_LOCK });
   client.defineCommand('releaseSchedulerLock', { numberOfKeys: 1, lua: SCRIPTS.RELEASE_SCHEDULER_LOCK });
+  client.defineCommand('claimExecution', { numberOfKeys: 1, lua: SCRIPTS.CLAIM_EXECUTION });
 
   return client as Redis & {
     claimJob(activeKey: string, leasedKey: string, leaseExpiry: number): Promise<[string, string] | null>;
@@ -30,6 +31,8 @@ export const createRedisClient = (url: string = process.env.REDIS_URL || 'redis:
     renewLease(leasedKey: string, jobId: string, newExpiry: number): Promise<0 | 1>;
     renewSchedulerLock(lockKey: string, instanceId: string, ttlSec: number): Promise<0 | 1>;
     releaseSchedulerLock(lockKey: string, instanceId: string): Promise<0 | 1>;
+    /** Atomically claim the execution slot for a job attempt (SET NX EX). Returns 'OK' or null. */
+    claimExecution(fenceKey: string, workerId: string, ttlSec: number): Promise<'OK' | null>;
   };
 };
 

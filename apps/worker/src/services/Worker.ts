@@ -200,6 +200,21 @@ export class Worker {
       const latency = Math.max(0, Date.now() - scheduledTime);
       await redis.zadd('aura:metrics:latency', Date.now(), `${latency}:${jobId}`);
 
+      // ── Idempotency fence ──────────────────────────────────────────────────
+      // Atomically claim the execution slot for this job attempt.  If another
+      // worker already claimed it (e.g. the reaper re-enqueued a slow job while
+      // the original worker was still running) we release the lease and skip
+      // execution entirely — the other worker will complete or fail the job.
+      // TTL = 5 min: covers worst-case job duration; auto-cleared on success.
+      const FENCE_TTL_SEC = 300;
+      const fenceKey = `aura:executing:${jobId}`;
+      const fenceResult = await redis.claimExecution(fenceKey, this.id, FENCE_TTL_SEC);
+      if (fenceResult !== 'OK') {
+        console.warn(`[${this.id}] Execution fence already held for ${jobId} — skipping (duplicate)`);
+        await redis.completeJob('aura:leased', 'aura:meta:', jobId);
+        return;
+      }
+
       // Lease extension loop — conditional: only renew if the reaper hasn't evicted this job.
       leaseInterval = setInterval(async () => {
         const renewed = await redis.renewLease('aura:leased', jobId, Date.now() + LEASE_MS);
@@ -232,7 +247,8 @@ export class Worker {
       }
       // --- END EXECUTE ---
 
-      // Success
+      // Success — clear the idempotency fence so retries are not blocked
+      await redis.del(fenceKey).catch(() => {});
       await redis.completeJob('aura:leased', 'aura:meta:', jobId);
       const now = Date.now();
       // Idempotent completion: only first PROCESSING -> COMPLETED transition wins.
