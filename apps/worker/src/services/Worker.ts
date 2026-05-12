@@ -19,6 +19,28 @@ function formatMemoryMb(bytes: number) {
   return `${Math.round(bytes / 1024 / 1024)}MB`;
 }
 
+/**
+ * Pure function — determines the order in which a worker drains queues.
+ *
+ * Rules:
+ *   high-priority pool: high → default → low (low only every 5th miss to prevent starvation)
+ *   low-priority pool:  low  → default → high (high every 5th miss so it can't be skipped)
+ *   default pool:       high → default → low  (low every 3rd miss — more frequent inclusion)
+ *
+ * Exported so the ordering logic can be tested without a Worker instance.
+ */
+export function getQueueOrder(pool: string, claimMisses: number): string[] {
+  if (pool === 'high-priority') {
+    return [QUEUE_KEYS.high, QUEUE_KEYS.default, ...(claimMisses % 5 === 0 ? [QUEUE_KEYS.low] : [])];
+  }
+  if (pool === 'low-priority') {
+    return [QUEUE_KEYS.low, QUEUE_KEYS.default, ...(claimMisses % 5 === 0 ? [QUEUE_KEYS.high] : [])];
+  }
+  // default pool
+  const includeLow = claimMisses % 3 === 0;
+  return [QUEUE_KEYS.high, QUEUE_KEYS.default, ...(includeLow ? [QUEUE_KEYS.low] : [])];
+}
+
 export class Worker {
   private id: string;
   private pool: string;
@@ -111,14 +133,7 @@ export class Worker {
   }
 
   private getQueueOrder() {
-    if (this.pool === 'high-priority') {
-      return [QUEUE_KEYS.high, QUEUE_KEYS.default, ...(this.claimMisses % 5 === 0 ? [QUEUE_KEYS.low] : [])];
-    }
-    if (this.pool === 'low-priority') {
-      return [QUEUE_KEYS.low, QUEUE_KEYS.default, ...(this.claimMisses % 5 === 0 ? [QUEUE_KEYS.high] : [])];
-    }
-    const includeLow = this.claimMisses % 3 === 0;
-    return [QUEUE_KEYS.high, QUEUE_KEYS.default, ...(includeLow ? [QUEUE_KEYS.low] : [])];
+    return getQueueOrder(this.pool, this.claimMisses);
   }
 
   private async hasQueueMembership(jobId: string) {
