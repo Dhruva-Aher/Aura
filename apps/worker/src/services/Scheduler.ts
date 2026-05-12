@@ -169,7 +169,10 @@ export class Scheduler {
         if (now - lastReap > 5000) {
           lastReap = now;
           
-          const reaped = await (redis as any).reapJobs('aura:leased', 'aura:queue:default', 'aura:meta:', 'aura:queue:high', 'aura:queue:low', now);
+          const reaped = await (redis as any).reapJobs(
+            'aura:leased', 'aura:queue:default', 'aura:meta:',
+            'aura:queue:high', 'aura:queue:low', 'aura:delayed', now
+          );
           for (const [jobId, action] of reaped) {
             console.log(`[Scheduler] Reaped job ${jobId} -> ${action}`);
             await redis.publish(EVENT_CHANNEL, JSON.stringify({
@@ -178,29 +181,37 @@ export class Scheduler {
               source: 'scheduler',
               at: Date.now(),
             }));
-            
-            let targetStatus: 'PENDING' | 'DEAD_LETTER' = action === 'DEAD_LETTER' ? 'DEAD_LETTER' : 'PENDING';
-            if (action === 'REQUEUED') {
-              const [high, def, low, delayed, leased] = await Promise.all([
-                redis.zscore('aura:queue:high', jobId),
-                redis.zscore('aura:queue:default', jobId),
-                redis.zscore('aura:queue:low', jobId),
-                redis.zscore('aura:delayed', jobId),
-                redis.zscore('aura:leased', jobId),
-              ]);
-              const verified = high !== null || def !== null || low !== null || delayed !== null || leased !== null;
-              if (!verified) targetStatus = 'DEAD_LETTER';
-            }
 
-            await prisma.$transaction([
-              prisma.job.update({
-                where: { id: jobId },
-                data: { status: targetStatus }
-              }),
-              prisma.jobEvent.create({
-                data: { jobId, type: 'REAPED', message: `Lease expired. Action: ${action}${action === 'REQUEUED' && targetStatus === 'DEAD_LETTER' ? ' (requeue verification failed)' : ''}` }
-              })
-            ]);
+            const targetStatus: 'PENDING' | 'DEAD_LETTER' =
+              action === 'DEAD_LETTER' ? 'DEAD_LETTER' : 'PENDING';
+
+            // Use updateMany with a status guard so we never overwrite a job
+            // that completed (or was already dead-lettered) between the Redis
+            // reap and this Postgres write — a real race during high throughput.
+            // Also increment attempts to keep Postgres in sync with the Redis
+            // meta counter that REAP_JOBS already incremented.
+            await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+              const updated = await tx.job.updateMany({
+                where: {
+                  id: jobId,
+                  status: { notIn: ['COMPLETED', 'DEAD_LETTER'] },
+                },
+                data: {
+                  status: targetStatus,
+                  attempts: { increment: 1 },
+                  workerId: null,
+                  lastHeartbeat: null,
+                },
+              });
+              if (updated.count === 0) return; // already completed — do nothing
+              await tx.jobEvent.create({
+                data: {
+                  jobId,
+                  type: 'REAPED',
+                  message: `Lease expired — worker crash assumed. Action: ${action}. Retry in 5 s via delayed queue.`,
+                },
+              });
+            });
           }
 
           const offlineThreshold = new Date(Date.now() - 30000);

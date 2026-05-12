@@ -26,6 +26,13 @@ export const SCRIPTS = {
     return #jobs
   `,
 
+  // KEYS[1]=aura:leased  KEYS[2]=aura:queue:default (unused, kept for arity)
+  // KEYS[3]=aura:meta:   KEYS[4]=aura:queue:high   KEYS[5]=aura:queue:low
+  // KEYS[6]=aura:delayed ARGV[1]=nowMs
+  //
+  // Retryable jobs are routed through aura:delayed with a 5 s hold instead of
+  // being put directly back into the active queue.  This prevents a thundering
+  // herd when many workers crash simultaneously (e.g. during a deploy).
   REAP_JOBS: `
     local expired = redis.call('zrangebyscore', KEYS[1], 0, ARGV[1])
     local reaped = {}
@@ -34,15 +41,8 @@ export const SCRIPTS = {
       local max = tonumber(redis.call('hget', KEYS[3] .. jobId, 'maxAttempts') or 3)
       redis.call('zrem', KEYS[1], jobId)
       if attempts < max then
-        local priority = redis.call('hget', KEYS[3] .. jobId, 'priority') or 0
-        local targetQueue = redis.call('hget', KEYS[3] .. jobId, 'queue') or 'default'
-        local activeKey = KEYS[2]
-        if targetQueue == 'high' then
-          activeKey = KEYS[4]
-        elseif targetQueue == 'low' then
-          activeKey = KEYS[5]
-        end
-        redis.call('zadd', activeKey, priority, jobId)
+        local retryAt = tonumber(ARGV[1]) + 5000
+        redis.call('zadd', KEYS[6], retryAt, jobId)
         table.insert(reaped, {jobId, 'REQUEUED'})
       else
         table.insert(reaped, {jobId, 'DEAD_LETTER'})
