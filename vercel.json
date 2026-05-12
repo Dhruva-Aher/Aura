@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "npm run build -w operator-console",
+  "buildCommand": "cd apps/operator-console && npx vite build",
   "outputDirectory": "apps/operator-console/dist",
   "framework": "vite",
   "rewrites": [
