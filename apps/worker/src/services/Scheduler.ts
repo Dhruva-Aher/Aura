@@ -40,21 +40,67 @@ export class Scheduler {
   }
 
   private async reconcilePendingJobs() {
-    console.log('[Scheduler] Reconciling PENDING jobs from Postgres to Redis...');
+    // Batch size prevents overwhelming Redis when the backlog is large.
+    const BATCH = Number(process.env.RECONCILE_BATCH_SIZE ?? 1_000);
+    console.log(`[Scheduler] Reconciling PENDING jobs (batch=${BATCH})…`);
     try {
-      const pendingJobs = await prisma.job.findMany({ where: { status: 'PENDING' } });
-      for (const job of pendingJobs) {
-        const queueRaw = await redis.hget(`aura:meta:${job.id}`, 'queue');
-        const activeKey = queueRaw === 'high' ? 'aura:queue:high' : queueRaw === 'low' ? 'aura:queue:low' : 'aura:queue:default';
-        await redis.zadd(activeKey, job.priority, job.id);
-        await redis.hset(`aura:meta:${job.id}`, {
-          priority: job.priority,
-          attempts: job.attempts,
-          maxAttempts: job.maxAttempts,
-          queue: queueRaw === 'high' || queueRaw === 'low' ? queueRaw : 'default'
+      // Process in pages so memory stays bounded.
+      let cursor: string | undefined;
+      let totalRestored = 0;
+      let totalSkipped  = 0;
+
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const pendingJobs = await prisma.job.findMany({
+          where: { status: 'PENDING' },
+          select: { id: true, priority: true, attempts: true, maxAttempts: true },
+          take: BATCH,
+          ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+          orderBy: { id: 'asc' },
         });
+
+        if (pendingJobs.length === 0) break;
+        cursor = pendingJobs[pendingJobs.length - 1]!.id;
+
+        for (const job of pendingJobs) {
+          // Skip if already present in any Redis queue (quick restart protection).
+          const [high, def, low, delayed, leased] = await Promise.all([
+            redis.zscore('aura:queue:high',    job.id),
+            redis.zscore('aura:queue:default', job.id),
+            redis.zscore('aura:queue:low',     job.id),
+            redis.zscore('aura:delayed',       job.id),
+            redis.zscore('aura:leased',        job.id),
+          ]);
+          if (high !== null || def !== null || low !== null || delayed !== null || leased !== null) {
+            totalSkipped++;
+            continue;
+          }
+
+          const queueRaw = await redis.hget(`aura:meta:${job.id}`, 'queue');
+          const queueName = queueRaw === 'high' ? 'high' : queueRaw === 'low' ? 'low' : 'default';
+          const activeKey = queueName === 'high'
+            ? 'aura:queue:high'
+            : queueName === 'low'
+            ? 'aura:queue:low'
+            : 'aura:queue:default';
+
+          // Write both queue entry and meta in a single pipeline (2 RTTs → 1).
+          const pipe = redis.pipeline();
+          pipe.zadd(activeKey, job.priority, job.id);
+          pipe.hset(`aura:meta:${job.id}`, {
+            priority:    job.priority,
+            attempts:    job.attempts,
+            maxAttempts: job.maxAttempts,
+            queue:       queueName,
+          });
+          await pipe.exec();
+          totalRestored++;
+        }
+
+        if (pendingJobs.length < BATCH) break; // last page
       }
-      console.log(`[Scheduler] Reconciled ${pendingJobs.length} PENDING jobs`);
+
+      console.log(`[Scheduler] Reconciliation complete: restored=${totalRestored} skipped=${totalSkipped}`);
     } catch (err) {
       console.error('[Scheduler] Failed to reconcile jobs:', err);
     }
