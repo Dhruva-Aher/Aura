@@ -41,7 +41,9 @@ export const SCRIPTS = {
       local max = tonumber(redis.call('hget', KEYS[3] .. jobId, 'maxAttempts') or 3)
       redis.call('zrem', KEYS[1], jobId)
       if attempts < max then
-        local retryAt = tonumber(ARGV[1]) + 5000
+        local backoffMs = math.min(math.pow(2, attempts - 1) * 5000, 300000)
+        local jitter = math.random(0, math.max(1, math.floor(backoffMs * 0.1)))
+        local retryAt = tonumber(ARGV[1]) + backoffMs + jitter
         redis.call('zadd', KEYS[6], retryAt, jobId)
         table.insert(reaped, {jobId, 'REQUEUED'})
       else

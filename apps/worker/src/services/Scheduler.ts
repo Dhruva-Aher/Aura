@@ -208,7 +208,7 @@ export class Scheduler {
                 data: {
                   jobId,
                   type: 'REAPED',
-                  message: `Lease expired — worker crash assumed. Action: ${action}. Retry in 5 s via delayed queue.`,
+                  message: `Lease expired — worker crash assumed. Action: ${action}. Retry via delayed queue with exponential backoff.`,
                 },
               });
             });
