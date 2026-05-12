@@ -18,7 +18,21 @@ export class Scheduler {
     this.isRunning = true;
     console.log('[Scheduler] Started');
     await this.reconcilePendingJobs();
-    this.loop();
+    this.watchdog();
+  }
+
+  // Wraps loop() so a crash restarts it instead of silently killing scheduling.
+  private async watchdog() {
+    while (this.isRunning) {
+      try {
+        await this.loop();
+      } catch (err) {
+        console.error('[Scheduler] Loop crashed unexpectedly — restarting in 5s:', err);
+        await new Promise(r => setTimeout(r, 5000));
+      }
+    }
+    // Clear heartbeat so dashboard shows "offline" immediately after graceful stop.
+    await redis.del('aura:health:scheduler:last_loop').catch(() => {});
   }
 
   private async reconcilePendingJobs() {
@@ -139,6 +153,11 @@ export class Scheduler {
     while (this.isRunning) {
       try {
         const now = Date.now();
+
+        // Heartbeat written every iteration (~100ms cadence) with a 10s TTL.
+        // If the scheduler dies, the key expires within 10s and the dashboard
+        // correctly transitions from "degraded" → "offline".
+        await redis.set('aura:health:scheduler:last_loop', now.toString(), 'EX', 10);
         
         // 1. Promote delayed jobs
         const promotedCount = await (redis as any).promoteJobs('aura:delayed', 'aura:queue:default', 'aura:meta:', 'aura:queue:high', 'aura:queue:low', now);
@@ -190,7 +209,6 @@ export class Scheduler {
             data: { status: 'OFFLINE', currentJobId: null }
           });
 
-          await redis.set('aura:health:scheduler:last_loop', now.toString());
         }
 
         if (now - this.lastOrphanSweep > 10000) {

@@ -39,8 +39,12 @@ router.get('/health', async (req, res) => {
     const avgLagMs = Math.round(Math.max(0, Number(lagQuery[0]?.avg_lag || 0)) * 1000);
     const maxLagMs = Math.round(Math.max(0, Number(lagQuery[0]?.max_lag || 0)) * 1000);
     const drainRate = Number((Number(completed1h) / 3600).toFixed(4));
+    // Utilization = active leased slots / total concurrent slots (0–100%).
+    // Do NOT divide backlog by capacity — that gives meaningless 4000%+ values
+    // when the queue is large. Backlog depth is reported separately.
+    const leasedJobs = await redis.zcard('aura:leased');
     const workerCapacity = Math.max(totalWorkers, 1) * Number(process.env.WORKER_CONCURRENCY || 20);
-    const utilization = Number(((backlogSize / workerCapacity) * 100).toFixed(2));
+    const utilization = Number(((leasedJobs / workerCapacity) * 100).toFixed(2));
 
     const apiMs = Date.now() - apiStart;
     const workerState = staleWorkers > 0 ? 'degraded' : 'ok';

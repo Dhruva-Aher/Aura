@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -b",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "load-test": "tsx src/load-test.ts"
   },
   "dependencies": {
@@ -13,7 +15,9 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@vitest/coverage-v8": "^4.1.6",
     "tsx": "^4.7.2",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.6"
   }
 }
