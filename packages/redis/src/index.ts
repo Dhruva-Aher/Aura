@@ -14,6 +14,8 @@ export const createRedisClient = (url: string = process.env.REDIS_URL || 'redis:
   client.defineCommand('admissionGate', { numberOfKeys: 6, lua: SCRIPTS.ADMISSION_GATE });
   client.defineCommand('releaseAdmission', { numberOfKeys: 1, lua: SCRIPTS.RELEASE_ADMISSION });
   client.defineCommand('renewLease', { numberOfKeys: 1, lua: SCRIPTS.RENEW_LEASE });
+  client.defineCommand('renewSchedulerLock', { numberOfKeys: 1, lua: SCRIPTS.RENEW_SCHEDULER_LOCK });
+  client.defineCommand('releaseSchedulerLock', { numberOfKeys: 1, lua: SCRIPTS.RELEASE_SCHEDULER_LOCK });
 
   return client as Redis & {
     claimJob(activeKey: string, leasedKey: string, leaseExpiry: number): Promise<[string, string] | null>;
@@ -26,6 +28,8 @@ export const createRedisClient = (url: string = process.env.REDIS_URL || 'redis:
     admissionGate(highQueueKey: string, defaultQueueKey: string, lowQueueKey: string, delayedQueueKey: string, rateKey: string, reservationKey: string, threshold: number, rateLimit: number, rateTtlSec: number, reserveTtlSec: number): Promise<[string, string, string?]>;
     releaseAdmission(reservationKey: string): Promise<number>;
     renewLease(leasedKey: string, jobId: string, newExpiry: number): Promise<0 | 1>;
+    renewSchedulerLock(lockKey: string, instanceId: string, ttlSec: number): Promise<0 | 1>;
+    releaseSchedulerLock(lockKey: string, instanceId: string): Promise<0 | 1>;
   };
 };
 

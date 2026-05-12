@@ -15,6 +15,10 @@ export class Scheduler {
   private lastStaleProcessingSweep = 0;
 
   async start() {
+    if (this.isRunning) {
+      console.warn('[Scheduler] start() called while already running — ignored');
+      return;
+    }
     this.isRunning = true;
     console.log('[Scheduler] Started');
     await this.reconcilePendingJobs();

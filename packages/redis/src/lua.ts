@@ -130,5 +130,30 @@ export const SCRIPTS = {
     if current == false then return 0 end
     redis.call('zadd', KEYS[1], ARGV[2], ARGV[1])
     return 1
+  `,
+
+  // Scheduler leader-election helpers.
+  // RENEW_SCHEDULER_LOCK — only renew if this instance still holds the lock.
+  // KEYS[1]=lock key  ARGV[1]=instanceId  ARGV[2]=TTL seconds
+  // Returns 1 if renewed (we're still the leader), 0 if someone else holds it.
+  RENEW_SCHEDULER_LOCK: `
+    local current = redis.call('get', KEYS[1])
+    if current == ARGV[1] then
+      redis.call('expire', KEYS[1], tonumber(ARGV[2]))
+      return 1
+    end
+    return 0
+  `,
+
+  // RELEASE_SCHEDULER_LOCK — only delete the lock if we're the holder.
+  // KEYS[1]=lock key  ARGV[1]=instanceId
+  // Returns 1 if released, 0 if not the current holder (already expired / taken over).
+  RELEASE_SCHEDULER_LOCK: `
+    local current = redis.call('get', KEYS[1])
+    if current == ARGV[1] then
+      redis.call('del', KEYS[1])
+      return 1
+    end
+    return 0
   `
 };
