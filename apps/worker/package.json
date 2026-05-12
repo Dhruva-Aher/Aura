@@ -12,12 +12,12 @@
   },
   "dependencies": {
     "@aura/database": "*",
-    "@aura/redis": "*"
+    "@aura/redis": "*",
+    "tsx": "^4.7.2"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@vitest/coverage-v8": "^4.1.6",
-    "tsx": "^4.7.2",
     "typescript": "^5.0.0",
     "vitest": "^4.1.6"
   }

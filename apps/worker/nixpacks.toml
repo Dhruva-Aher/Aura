@@ -1,9 +1,13 @@
 # Railway build + start config for the worker service.
 # Root directory for this Railway service should be set to: apps/worker
 #
-# Build: only generate Prisma client — TypeScript is run directly via tsx,
-#        so we never need to compile to dist/.
-# Start: npm start → tsx src/index.ts (defined in package.json)
+# Install: npm install runs from repo root (via cd ../..) so workspace
+#          packages (@aura/database, @aura/redis) resolve correctly.
+# Build:   only generate Prisma client — tsx runs TS directly, no dist/ needed.
+# Start:   npm start → tsx src/index.ts (defined in package.json)
+
+[phases.install]
+cmds = ["cd ../.. && npm install"]
 
 [phases.build]
 cmds = ["cd ../.. && npm run db:generate"]
