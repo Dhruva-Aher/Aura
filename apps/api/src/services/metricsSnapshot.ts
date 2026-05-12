@@ -27,7 +27,7 @@ export async function buildMetricsOverview() {
   redis.zremrangebyscore('aura:metrics:throughput', 0, twoHoursAgo).catch(() => {});
   redis.zremrangebyscore('aura:metrics:latency', 0, twoHoursAgo).catch(() => {});
 
-  const [queueHigh, queueDefault, queueLow, processing, delayed, stateMetrics, completed1h, completedPrev1h, failed1h, retried1h, processingSamples1h, startedJobsRecent, startedJobsPrevRecent, activeWorkers, allWorkers] = await Promise.all([
+  const [queueHigh, queueDefault, queueLow, processing, delayed, stateMetrics, completed1h, completedPrev1h, failed1h, retried1h, processingSamples1h, startedJobsRecent, startedJobsPrevRecent, activeWorkers, allWorkers, bpAccepted, bpRejected] = await Promise.all([
     redis.zcard('aura:queue:high'),
     redis.zcard('aura:queue:default'),
     redis.zcard('aura:queue:low'),
@@ -55,6 +55,8 @@ export async function buildMetricsOverview() {
     }),
     redis.scard('aura:workers:active'),
     redis.scard('aura:workers:all'),
+    redis.get('aura:metrics:bp:accepted'),
+    redis.get('aura:metrics:bp:rejected'),
   ]);
 
   const active = queueHigh + queueDefault + queueLow;
@@ -91,6 +93,11 @@ export async function buildMetricsOverview() {
   const drainRate = Number((completed1h / 3600).toFixed(4));
   const retryRate = completed1h > 0 ? Number(((retried1h / completed1h) * 100).toFixed(2)) : 0;
   const failureRate = completed1h > 0 ? Number(((failed1h / completed1h) * 100).toFixed(2)) : 0;
+  const bpAcceptedTotal = parseInt(bpAccepted ?? '0', 10);
+  const bpRejectedTotal = parseInt(bpRejected ?? '0', 10);
+  const rejectionRate = bpAcceptedTotal + bpRejectedTotal > 0
+    ? Number(((bpRejectedTotal / (bpAcceptedTotal + bpRejectedTotal)) * 100).toFixed(2))
+    : 0;
   const workerCapacity = Math.max(activeWorkers, allWorkers, 1) * Number(process.env.WORKER_CONCURRENCY || 20);
   const workerUtilization = Number(((processing / workerCapacity) * 100).toFixed(2));
   const processingTimeP95 = p95FromEncodedDurations(processingSamples1h);
@@ -115,6 +122,11 @@ export async function buildMetricsOverview() {
     retryRate,
     failureRate,
     processingTimeP95,
+    backpressure: {
+      accepted: bpAcceptedTotal,
+      rejected: bpRejectedTotal,
+      rejectionRate,
+    },
     totalWorkers: Number(allWorkers),
     activeWorkers: Number(activeWorkers),
     queueDepth: {

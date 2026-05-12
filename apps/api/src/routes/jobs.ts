@@ -8,46 +8,22 @@ const queueService = new QueueService();
 const MAX_PAGE_SIZE = 200;
 const MAX_QUEUE_THRESHOLD = Number(process.env.MAX_QUEUE_THRESHOLD || 10000);
 const ENQUEUE_RATE_LIMIT_PER_SEC = Number(process.env.ENQUEUE_RATE_LIMIT_PER_SEC || 200);
-let backpressureAccepted = 0;
-let backpressureRejected = 0;
 
-export const getBackpressureCounters = () => ({
-  accepted: backpressureAccepted,
-  rejected: backpressureRejected,
-});
-const ADMISSION_GATE_LUA = `
-  local threshold = tonumber(ARGV[1])
-  local rateLimit = tonumber(ARGV[2])
-  local rateTtl = tonumber(ARGV[3])
-  local reserveTtl = tonumber(ARGV[4])
+// Counters are stored in Redis so they survive process restarts and are
+// visible across multiple API replicas.  The in-process variables are gone.
+const BP_ACCEPTED_KEY = 'aura:metrics:bp:accepted';
+const BP_REJECTED_KEY = 'aura:metrics:bp:rejected';
 
-  local reservations = tonumber(redis.call('get', KEYS[6]) or '0')
-  local queued = redis.call('zcard', KEYS[1]) + redis.call('zcard', KEYS[2]) + redis.call('zcard', KEYS[3]) + redis.call('zcard', KEYS[4])
-  local projected = queued + reservations
-
-  if projected >= threshold then
-    return {'REJECT_QUEUE', tostring(projected)}
-  end
-
-  local rate = redis.call('incr', KEYS[5])
-  if rate == 1 then
-    redis.call('expire', KEYS[5], rateTtl)
-  end
-  if rate > rateLimit then
-    return {'REJECT_RATE', tostring(rate)}
-  end
-
-  local token = redis.call('incr', KEYS[6])
-  if token == 1 then
-    redis.call('expire', KEYS[6], reserveTtl)
-  end
-  return {'ACCEPT', tostring(token), tostring(projected)}
-`;
-const RELEASE_ADMISSION_LUA = `
-  local current = tonumber(redis.call('get', KEYS[1]) or '0')
-  if current <= 0 then return 0 end
-  return redis.call('decr', KEYS[1])
-`;
+export async function getBackpressureCounters() {
+  const [accepted, rejected] = await Promise.all([
+    redis.get(BP_ACCEPTED_KEY),
+    redis.get(BP_REJECTED_KEY),
+  ]);
+  return {
+    accepted: parseInt(accepted ?? '0', 10),
+    rejected: parseInt(rejected ?? '0', 10),
+  };
+}
 
 const CreateJobSchema = z.object({
   idempotencyKey: z.string().min(1),
@@ -63,44 +39,44 @@ router.post('/', async (req, res) => {
   let admissionAccepted = false;
   try {
     const data = CreateJobSchema.parse(req.body);
+
+    // Use the shared admissionGate custom command — single source of truth
+    // for the Lua script (packages/redis/src/lua.ts ADMISSION_GATE).
+    // rateKey rotates every second so the counter resets per second naturally.
     const rateKey = `aura:ratelimit:enqueue:${Math.floor(Date.now() / 1000)}`;
-    const reservationKey = 'aura:backpressure:reservations';
-    const result = await redis.eval(
-      ADMISSION_GATE_LUA,
-      6,
+    const [decision, info] = await redis.admissionGate(
       'aura:queue:high',
       'aura:queue:default',
       'aura:queue:low',
       'aura:delayed',
       rateKey,
-      reservationKey,
+      'aura:backpressure:reservations',
       MAX_QUEUE_THRESHOLD,
       ENQUEUE_RATE_LIMIT_PER_SEC,
-      2,
-      30
-    ) as unknown as [string, string];
-    const decision = result?.[0];
-    const info = result?.[1];
+      2,   // rate window TTL in seconds
+      30   // reservation TTL in seconds
+    );
+
     if (decision === 'REJECT_RATE') {
-      backpressureRejected++;
+      redis.incr(BP_REJECTED_KEY).catch(() => {});
       res.setHeader('Retry-After', '1');
-      return res.status(429).json({ error: `enqueue rate limit exceeded (${info})` });
+      return res.status(429).json({ error: `rate limit exceeded — ${info} req/s (max ${ENQUEUE_RATE_LIMIT_PER_SEC})` });
     }
     if (decision === 'REJECT_QUEUE') {
-      backpressureRejected++;
+      redis.incr(BP_REJECTED_KEY).catch(() => {});
       res.setHeader('Retry-After', '5');
-      return res.status(429).json({ error: `queue capacity exceeded (${info}/${MAX_QUEUE_THRESHOLD})` });
+      return res.status(429).json({ error: `queue full — ${info}/${MAX_QUEUE_THRESHOLD} jobs queued` });
     }
-    admissionAccepted = true;
 
+    admissionAccepted = true;
     const job = await queueService.enqueue(data);
-    backpressureAccepted++;
+    redis.incr(BP_ACCEPTED_KEY).catch(() => {});
     res.json(job);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
   } finally {
     if (admissionAccepted) {
-      redis.eval(RELEASE_ADMISSION_LUA, 1, 'aura:backpressure:reservations').catch(() => {});
+      redis.releaseAdmission('aura:backpressure:reservations').catch(() => {});
     }
   }
 });
