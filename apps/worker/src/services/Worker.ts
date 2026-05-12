@@ -3,11 +3,13 @@ import { createRedisClient } from '@aura/redis';
 import { randomUUID } from 'crypto';
 import os from 'os';
 import { FailureInjector } from './FailureInjector';
+import { createLogger } from './Logger';
 
 const redis = createRedisClient();
 const WORKER_ID = randomUUID();
 const LEASE_MS = 30000;
 const EVENT_CHANNEL = 'aura:events';
+const baseLog = createLogger('Worker');
 
 const QUEUE_KEYS = {
   high: 'aura:queue:high',
@@ -78,7 +80,7 @@ export class Worker {
       startedAt: Date.now(),
     });
 
-    console.log(`[${this.id}] Started in pool: ${this.pool}`);
+    baseLog.info('Started', { workerId: this.id, pool: this.pool, concurrency: this.concurrency });
     
     this.startHeartbeat();
     for (let i = 0; i < this.concurrency; i++) {
@@ -126,8 +128,8 @@ export class Worker {
           memory: mem,
           at: Date.now(),
         }));
-      } catch (err) {
-        console.error(`[${this.id}] Heartbeat failed:`, err);
+      } catch (err: any) {
+        baseLog.warn('Heartbeat failed', { workerId: this.id, err: err.message });
       }
     }
   }
@@ -168,8 +170,8 @@ export class Worker {
           this.claimMisses++;
           await new Promise(r => setTimeout(r, 1000)); // Sleep if no jobs
         }
-      } catch (err) {
-        console.error(`[${this.id}] Loop error:`, err);
+      } catch (err: any) {
+        baseLog.error('Loop error', { workerId: this.id, loopIndex, err: err.message });
         await new Promise(r => setTimeout(r, 2000));
       }
     }
@@ -225,7 +227,7 @@ export class Worker {
       const fenceKey = `aura:executing:${jobId}`;
       const fenceResult = await redis.claimExecution(fenceKey, this.id, FENCE_TTL_SEC);
       if (fenceResult !== 'OK') {
-        console.warn(`[${this.id}] Execution fence already held for ${jobId} — skipping (duplicate)`);
+        baseLog.warn('Execution fence already held — skipping duplicate', { workerId: this.id, jobId });
         await redis.completeJob('aura:leased', 'aura:meta:', jobId);
         return;
       }
@@ -242,7 +244,7 @@ export class Worker {
       }, 10000);
 
       // --- EXECUTE TASK ---
-      console.log(`[${this.id}] Executing job: ${job.name} (${jobId})`);
+      baseLog.info('Executing job', { workerId: this.id, jobId, name: job.name });
       await this.injector.simulateExecution();
 
       // Deterministic failure: generator (or any caller) can set shouldFail=true
@@ -257,7 +259,7 @@ export class Worker {
       // Crash mode: simulate abrupt process death so the lease expires and the
       // reaper proves the recovery path (reap → delayed → retry).
       if (this.injector.shouldCrash()) {
-        console.error(`[${this.id}] Simulating process crash mid-job ${jobId} — exiting`);
+        baseLog.error('Simulating process crash mid-job — exiting', { workerId: this.id, jobId });
         process.exit(1);
       }
       // --- END EXECUTE ---
@@ -291,11 +293,11 @@ export class Worker {
           workerId: this.id,
           at: Date.now(),
         }));
-        console.log(`[${this.id}] Completed job: ${jobId}`);
+        baseLog.info('Completed job', { workerId: this.id, jobId, processingTimeMs: processingTime });
       }
 
     } catch (err: any) {
-      console.error(`[${this.id}] Failed job ${jobId}:`, err.message);
+      baseLog.warn('Job failed', { workerId: this.id, jobId, err: err.message });
       
       const result = await redis.failJob(
         'aura:leased',

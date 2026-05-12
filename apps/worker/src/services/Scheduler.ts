@@ -1,8 +1,10 @@
 import { prisma, Prisma } from '@aura/database';
 import { createRedisClient } from '@aura/redis';
+import { createLogger } from './Logger';
 
 const redis = createRedisClient();
 const EVENT_CHANNEL = 'aura:events';
+const log = createLogger('Scheduler');
 
 // A job stuck in PROCESSING with no Redis lease entry and a stale heartbeat means
 // the worker crashed AND Redis lost state. The reaper can't see it (not in aura:leased).
@@ -16,11 +18,11 @@ export class Scheduler {
 
   async start() {
     if (this.isRunning) {
-      console.warn('[Scheduler] start() called while already running — ignored');
+      log.warn('start() called while already running — ignored');
       return;
     }
     this.isRunning = true;
-    console.log('[Scheduler] Started');
+    log.info('Started');
     await this.reconcilePendingJobs();
     this.watchdog();
   }
@@ -30,8 +32,8 @@ export class Scheduler {
     while (this.isRunning) {
       try {
         await this.loop();
-      } catch (err) {
-        console.error('[Scheduler] Loop crashed unexpectedly — restarting in 5s:', err);
+      } catch (err: any) {
+        log.error('Loop crashed unexpectedly — restarting in 5s', { err: err.message });
         await new Promise(r => setTimeout(r, 5000));
       }
     }
@@ -42,7 +44,8 @@ export class Scheduler {
   private async reconcilePendingJobs() {
     // Batch size prevents overwhelming Redis when the backlog is large.
     const BATCH = Number(process.env.RECONCILE_BATCH_SIZE ?? 1_000);
-    console.log(`[Scheduler] Reconciling PENDING jobs (batch=${BATCH})…`);
+    const t0 = Date.now();
+    log.info('Reconciling PENDING jobs', { batchSize: BATCH });
     try {
       // Process in pages so memory stays bounded.
       let cursor: string | undefined;
@@ -100,9 +103,17 @@ export class Scheduler {
         if (pendingJobs.length < BATCH) break; // last page
       }
 
-      console.log(`[Scheduler] Reconciliation complete: restored=${totalRestored} skipped=${totalSkipped}`);
-    } catch (err) {
-      console.error('[Scheduler] Failed to reconcile jobs:', err);
+      const durationMs = Date.now() - t0;
+      log.info('Reconciliation complete', { restored: totalRestored, skipped: totalSkipped, durationMs });
+      // Persist reconcile metrics so the dashboard / health endpoint can surface them.
+      await redis.hset('aura:health:scheduler:reconcile', {
+        restoredJobs: totalRestored,
+        skippedJobs:  totalSkipped,
+        durationMs,
+        completedAt:  Date.now(),
+      }).catch(() => {});
+    } catch (err: any) {
+      log.error('Failed to reconcile jobs', { err: err.message });
     }
   }
 
@@ -130,7 +141,7 @@ export class Scheduler {
       recovered++;
     }
     if (recovered > 0) {
-      console.log(`[Scheduler] Recovered ${recovered} orphaned PENDING jobs`);
+      log.info('Recovered orphaned PENDING jobs', { recovered, checked: pendingJobs.length });
     }
   }
 
@@ -184,7 +195,7 @@ export class Scheduler {
       if (result) {
         await redis.zadd(activeKey, job.priority, job.id);
         recovered++;
-        console.log(`[Scheduler] Recovered stale PROCESSING job ${job.id}`);
+        log.info('Recovered stale PROCESSING job', { jobId: job.id, queue: activeKey });
         await redis.publish(EVENT_CHANNEL, JSON.stringify({
           type: 'job_requeued',
           jobId: job.id,
@@ -194,7 +205,7 @@ export class Scheduler {
       }
     }
     if (recovered > 0) {
-      console.log(`[Scheduler] Recovered ${recovered} stale PROCESSING jobs`);
+      log.info('Recovered stale PROCESSING jobs', { recovered, candidates: staleJobs.length });
     }
   }
 
@@ -212,19 +223,19 @@ export class Scheduler {
         // 1. Promote delayed jobs
         const promotedCount = await (redis as any).promoteJobs('aura:delayed', 'aura:queue:default', 'aura:meta:', 'aura:queue:high', 'aura:queue:low', now);
         if (promotedCount > 0) {
-          console.log(`[Scheduler] Promoted ${promotedCount} delayed jobs`);
+          log.info('Promoted delayed jobs', { count: promotedCount });
         }
 
         // Heavy cleanup operations (every 5 seconds)
         if (now - lastReap > 5000) {
           lastReap = now;
-          
+
           const reaped = await (redis as any).reapJobs(
             'aura:leased', 'aura:queue:default', 'aura:meta:',
             'aura:queue:high', 'aura:queue:low', 'aura:delayed', now
           );
           for (const [jobId, action] of reaped) {
-            console.log(`[Scheduler] Reaped job ${jobId} -> ${action}`);
+            log.info('Reaped job', { jobId, action });
             await redis.publish(EVENT_CHANNEL, JSON.stringify({
               type: action === 'REQUEUED' ? 'job_requeued' : 'job_failed',
               jobId,
@@ -282,8 +293,8 @@ export class Scheduler {
           await this.recoverStaleProcessingJobs();
         }
 
-      } catch (err) {
-        console.error('[Scheduler] Error:', err);
+      } catch (err: any) {
+        log.error('Loop iteration error', { err: err.message });
       }
       
       await new Promise(r => setTimeout(r, 100));
