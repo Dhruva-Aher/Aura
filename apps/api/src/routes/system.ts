@@ -29,6 +29,8 @@ router.get('/health', async (req, res) => {
     ]);
     const backlogSize = highBacklog + defaultBacklog + lowBacklog + delayedBacklog;
 
+    const sloSnapshotRaw = await redis.get('aura:health:slo:snapshot').catch(() => null);
+
     const lagQuery = await prisma.$queryRaw`
       SELECT 
         COALESCE(AVG(EXTRACT(EPOCH FROM (NOW() - "scheduledFor"))), 0) as avg_lag,
@@ -50,9 +52,17 @@ router.get('/health', async (req, res) => {
     const workerState = staleWorkers > 0 ? 'degraded' : 'ok';
     const schedulerDelay = lastLoopRaw ? Date.now() - parseInt(lastLoopRaw, 10) : -1;
     const schedulerState = schedulerDelay >= 0 && schedulerDelay < 5000 ? 'ok' : 'degraded';
+    const sloSnapshot = sloSnapshotRaw ? JSON.parse(sloSnapshotRaw) : null;
+    const sloBreachCount = sloSnapshot
+      ? (sloSnapshot.results as any[]).filter((r: any) => r.severity !== 'ok').length
+      : 0;
+    const hasCriticalSlo = sloSnapshot
+      ? (sloSnapshot.results as any[]).some((r: any) => r.severity === 'critical')
+      : false;
+
     const overallState =
-      backlogSize > 10000 || utilization > 95 ? 'overloaded'
-      : backlogSize > 3000 || staleWorkers > 0 || avgLagMs > 10000 ? 'degraded'
+      backlogSize > 10000 || utilization > 95 || hasCriticalSlo ? 'overloaded'
+      : backlogSize > 3000 || staleWorkers > 0 || avgLagMs > 10000 || sloBreachCount > 0 ? 'degraded'
       : 'ok';
 
     res.json([
@@ -63,6 +73,7 @@ router.get('/health', async (req, res) => {
       { name: 'Queue Lag (Max)', status: maxLagMs < 10000 ? 'Healthy' : 'Delayed', ms: `${maxLagMs}ms`, state: maxLagMs < 10000 ? 'ok' : 'degraded' },
       { name: 'Queue Drain Rate', status: drainRate > 0 ? 'Healthy' : 'Stalled', ms: `${drainRate} jobs/s`, state: drainRate > 0 ? 'ok' : 'degraded' },
       { name: 'Scheduler Loop', status: schedulerState === 'ok' ? 'Healthy' : 'Delayed', ms: schedulerDelay >= 0 ? `${schedulerDelay}ms` : 'offline', state: schedulerState },
+      { name: 'SLO Status', status: sloBreachCount === 0 ? 'All SLOs Met' : `${sloBreachCount} breach${sloBreachCount !== 1 ? 'es' : ''}`, ms: sloSnapshot ? `${(sloSnapshot.results as any[]).filter((r: any) => r.ok).length}/${(sloSnapshot.results as any[]).length} passing` : 'pending', state: hasCriticalSlo ? 'degraded' : sloBreachCount > 0 ? 'degraded' : 'ok', slos: sloSnapshot?.results ?? [] },
       { name: 'Redis', status: redisMs < 100 ? 'Healthy' : 'Degraded', ms: `${redisMs}ms`, state: redisMs < 100 ? 'ok' : 'degraded' },
       { name: 'PostgreSQL', status: pgMs < 200 ? 'Healthy' : 'Degraded', ms: `${pgMs}ms`, state: pgMs < 200 ? 'ok' : 'degraded' },
       { name: 'System Status', status: overallState === 'ok' ? 'Healthy' : overallState === 'degraded' ? 'Degraded' : 'Overloaded', ms: `${backlogSize} queued`, state: overallState },

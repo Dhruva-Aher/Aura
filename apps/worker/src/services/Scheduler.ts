@@ -1,9 +1,11 @@
 import { prisma, Prisma } from '@aura/database';
 import { createRedisClient } from '@aura/redis';
 import { createLogger } from './Logger';
+import { evaluateSlos, breaches, SloMetrics } from './SloEvaluator';
 
 const redis = createRedisClient();
-const EVENT_CHANNEL = 'aura:events';
+const EVENT_CHANNEL  = 'aura:events';
+const ALERT_CHANNEL  = 'aura:alerts';
 const log = createLogger('Scheduler');
 
 // A job stuck in PROCESSING with no Redis lease entry and a stale heartbeat means
@@ -15,6 +17,7 @@ export class Scheduler {
   private isRunning: boolean = false;
   private lastOrphanSweep = 0;
   private lastStaleProcessingSweep = 0;
+  private lastSloSweep = 0;
 
   async start() {
     if (this.isRunning) {
@@ -293,11 +296,103 @@ export class Scheduler {
           await this.recoverStaleProcessingJobs();
         }
 
+        if (now - this.lastSloSweep > 30000) {
+          this.lastSloSweep = now;
+          await this.evaluateAndPublishSlos(now).catch((err: any) =>
+            log.warn('SLO evaluation failed', { err: err.message }),
+          );
+        }
+
       } catch (err: any) {
         log.error('Loop iteration error', { err: err.message });
       }
       
       await new Promise(r => setTimeout(r, 100));
+    }
+  }
+
+  private async evaluateAndPublishSlos(nowMs: number): Promise<void> {
+    const oneHourAgo = nowMs - 3_600_000;
+
+    // Collect metrics from Redis + Postgres in parallel.
+    const [
+      p95Raw,
+      dlqCount1h,
+      completed1h,
+      drainRateRaw,
+      onlineWorkers,
+      heartbeatRaw,
+    ] = await Promise.all([
+      // P95 latency: stored as encoded 'latencyMs:jobId' members
+      redis.zrangebyscore('aura:metrics:latency', oneHourAgo, nowMs).then(rows => {
+        if (!rows.length) return 0;
+        const samples = rows
+          .map((r: string) => parseInt(r.split(':')[0] ?? '0', 10))
+          .filter((n: number) => n >= 0)
+          .sort((a: number, b: number) => a - b);
+        const idx = Math.min(Math.floor(samples.length * 0.95), samples.length - 1);
+        return samples[idx] ?? 0;
+      }),
+      redis.zcount('aura:metrics:failed', oneHourAgo, nowMs),
+      redis.zcount('aura:metrics:throughput', oneHourAgo, nowMs),
+      // Drain rate stored in reconcile hash (jobs/sec over last hour)
+      redis.hget('aura:metrics:state', 'COMPLETED').then(v => {
+        // Approximation: use completed count from all-time divided by uptime — not
+        // available here, so use the 1h count / 3600 as in metricsSnapshot.ts
+        return null; // resolved separately below
+      }),
+      prisma.worker.count({ where: { status: 'ONLINE' } }),
+      redis.get('aura:health:scheduler:last_loop'),
+    ]);
+
+    const drainRatePerSec = Number((Number(completed1h) / 3600).toFixed(4));
+    const schedulerHeartbeatAgeMs = heartbeatRaw
+      ? nowMs - parseInt(heartbeatRaw, 10)
+      : -1;
+
+    const metrics: SloMetrics = {
+      p95LatencyMs:            Number(p95Raw),
+      dlqCount1h:              Number(dlqCount1h),
+      completed1h:             Number(completed1h),
+      drainRatePerSec,
+      onlineWorkers:           Number(onlineWorkers),
+      schedulerHeartbeatAgeMs,
+    };
+
+    const results = evaluateSlos(metrics);
+    const activeBreaches = breaches(results);
+
+    // Persist latest SLO snapshot to Redis so the health endpoint can serve it
+    // without re-computing (a single hset, not one key per SLO).
+    const pipe = redis.pipeline();
+    pipe.set(
+      'aura:health:slo:snapshot',
+      JSON.stringify({ evaluatedAt: nowMs, results }),
+      'EX', 120, // 2-minute TTL — stale if scheduler dies
+    );
+
+    // Publish one alert per breached SLO.
+    for (const b of activeBreaches) {
+      const alert = {
+        type:    'slo_breach',
+        sloId:   b.id,
+        severity: b.severity,
+        message: b.message,
+        current: b.current,
+        unit:    b.unit,
+        at:      nowMs,
+      };
+      log[b.severity === 'critical' ? 'error' : 'warn'](
+        `SLO breach: ${b.name}`,
+        { sloId: b.id, severity: b.severity, current: b.current, unit: b.unit },
+      );
+      pipe.publish(ALERT_CHANNEL, JSON.stringify(alert));
+      pipe.publish(EVENT_CHANNEL,  JSON.stringify({ ...alert, type: 'slo_breach' }));
+    }
+    await pipe.exec();
+
+    if (activeBreaches.length === 0) {
+      log.debug('All SLOs within bounds', { evaluated: results.length });
     }
   }
 
