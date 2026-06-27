@@ -26,25 +26,21 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { data: metrics } = useQuery({
     queryKey: ['metrics'],
     queryFn: metricsService.getOverview,
-    refetchInterval: 5000,
   });
 
   const { data: pulse } = useQuery({
     queryKey: ['pulse'],
     queryFn: metricsService.getPulse,
-    refetchInterval: 15000,
   });
 
   const { data: recentJobs } = useQuery({
     queryKey: ['recentJobs'],
     queryFn: () => jobsService.getRecent(),
-    refetchInterval: 5000,
   });
 
   const { data: workers } = useQuery({
     queryKey: ['workers'],
     queryFn: systemService.getWorkers,
-    refetchInterval: 3000,
   });
 
   const { data: health } = useQuery({

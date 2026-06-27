@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import { 
-  Activity, Zap, Cpu, 
-  Search, Bell, MoonStar, ChevronRight, 
+  Zap, 
+  Search, MoonStar, ChevronRight, 
   Server, Database, LayoutDashboard, ListFilter,
-  Plus, CalendarDays, Workflow, HeartPulse, Gauge,
-  ShieldCheck, FolderKanban, Link2, ChevronDown,
-  Clock3, TriangleAlert, Repeat
+  Plus, CalendarDays, Workflow, Gauge,
+  ShieldCheck, FolderKanban, ChevronDown,
+  TriangleAlert, Repeat
 } from 'lucide-react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, 
@@ -38,27 +38,18 @@ const sidebarGroups = [
     title: "Workers",
     items: [
       { label: "Workers", icon: Workflow, to: "/workers" },
-      { label: "Worker Pools", icon: Cpu, to: "/pools" },
-      { label: "Heartbeats", icon: HeartPulse, to: "/heartbeats" },
+      
     ],
   },
   {
     title: "Monitoring",
     items: [
       { label: "Metrics", icon: Gauge, to: "/metrics" },
-      { label: "Alerts", icon: Bell, to: "/alerts" },
-      { label: "Events", icon: Zap, to: "/events" },
+      
       { label: "System Health", icon: ShieldCheck, to: "/health" },
     ],
   },
-  {
-    title: "Settings",
-    items: [
-      { label: "Queues", icon: FolderKanban, to: "/queues" },
-      { label: "Settings", icon: MoonStar, to: "/settings" },
-      { label: "API Keys", icon: Link2, to: "/keys" },
-    ],
-  },
+  
 ];
 
 function useDebounce<T>(value: T, delay: number): T {
@@ -77,8 +68,6 @@ export default function App() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
   const [isDark, setIsDark] = useState(true);
-  const [showNotifications, setShowNotifications] = useState(false);
-
   return (
     <div className="min-h-screen bg-[#070912] text-white font-sans selection:bg-violet-500/30">
       <div className="flex h-screen">
@@ -140,13 +129,13 @@ export default function App() {
           </div>
 
           <div className="mt-auto rounded-2xl border border-white/10 bg-[#0d1020] p-3 shrink-0">
-            <div className="flex items-center gap-3 cursor-pointer group">
+            <div className="flex items-center gap-3 flex items-center gap-3">
               <div className="grid h-10 w-10 place-items-center rounded-full bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/20 transition group-hover:bg-sky-500/30">AD</div>
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium text-white group-hover:text-sky-300 transition">Admin</div>
                 <div className="truncate text-xs text-white/45">admin@aura.dev</div>
               </div>
-              <ChevronDown className="ml-auto h-4 w-4 text-white/40 group-hover:text-white transition" />
+              
             </div>
           </div>
         </aside>
@@ -177,22 +166,8 @@ export default function App() {
                 <button onClick={() => setIsDark(!isDark)} className={`grid h-11 w-11 place-items-center rounded-full border border-white/10 ${isDark ? 'bg-[#111528] text-white/70 hover:text-white' : 'bg-white/10 text-white'} transition`}>
                   <MoonStar className="h-5 w-5" />
                 </button>
-                <div className="relative">
-                  <button onClick={() => setShowNotifications(!showNotifications)} className="relative grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-[#111528] text-white/70 hover:text-white transition">
-                    <Bell className="h-5 w-5" />
-                    <span className="absolute right-2 top-2 grid h-5 w-5 place-items-center rounded-full bg-violet-500 text-[11px] font-semibold text-white shadow-lg shadow-violet-500/40">3</span>
-                  </button>
-                  {showNotifications && (
-                    <div className="absolute right-0 top-14 w-80 rounded-2xl border border-white/10 bg-[#111528] p-4 shadow-xl z-50">
-                      <div className="text-sm font-semibold text-white mb-3">Notifications</div>
-                      <div className="space-y-2">
-                        {['High latency detected in default pool', 'Database backup completed', 'Worker pool autoscaled'].map((msg, i) => (
-                          <div key={i} className="text-sm text-white/70 p-2 rounded hover:bg-white/5 cursor-pointer">{msg}</div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                
+
                 <button onClick={() => setIsEnqueueOpen(true)} className="hidden h-11 items-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-500 px-4 text-sm font-semibold text-white shadow-lg shadow-violet-950/30 hover:brightness-110 sm:flex transition-all active:scale-95">
                   <Plus className="h-4 w-4" /> Enqueue Job
                 </button>
@@ -210,7 +185,7 @@ export default function App() {
                 <Route path="/schedules" element={<SchedulesView />} />
                 <Route path="/health" element={<HealthView />} />
                 <Route path="/metrics" element={<MetricsView />} />
-                <Route path="*" element={<PlaceholderView title="View not found" />} />
+                
               </Routes>
             </div>
           </div>
@@ -227,10 +202,6 @@ export default function App() {
 function DashboardView() {
   const { metrics, pulse, recentJobs, workers, health, replayDlq, discardDlq, retryJob } = useAura();
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
-  const [timeRange, setTimeRange] = useState('Last 1 hour');
-  const [pulseMetric, setPulseMetric] = useState('Jobs/sec');
-  const [latencyMetric, setLatencyMetric] = useState('P95');
-  const [throughputMetric, setThroughputMetric] = useState('Jobs/min');
   const navigate = useNavigate();
 
   const queueData = metrics ? [
@@ -252,17 +223,15 @@ function DashboardView() {
           <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-[2.1rem]">Good evening, Admin 👋</h1>
           <p className="mt-1 text-sm text-white/55">Here's what's happening with your queues.</p>
         </div>
-        <button onClick={() => setTimeRange(timeRange === 'Last 1 hour' ? 'Last 24 hours' : 'Last 1 hour')} className="inline-flex h-11 items-center gap-2 self-start rounded-2xl border border-white/10 bg-[#111528] px-4 text-sm text-white/75 hover:text-white transition">
-          <Clock3 className="h-4 w-4" /> {timeRange} <ChevronDown className="h-4 w-4" />
-        </button>
+        
       </div>
 
       {/* Stats row */}
       <div className="grid gap-4 xl:grid-cols-4">
-        <StatCard title="Pending" value={metrics?.active.value ?? 0} delta="↗ 12.5%" deltaTone="text-emerald-300" icon={FolderKanban} sparkColor="#7c6df2" sparkData={pulse?.slice(-10).map(p => ({value: p.scheduled})) ?? []} />
-        <StatCard title="Processing" value={metrics?.processing.value ?? 0} delta="↗ 8.3%" deltaTone="text-sky-300" icon={Zap} sparkColor="#4da3ff" sparkData={pulse?.slice(-10).map(p => ({value: p.completed})) ?? []} />
-        <StatCard title="Completed" value={metrics?.completed.value ?? 0} delta="↗ 18.7%" deltaTone="text-emerald-300" icon={ShieldCheck} sparkColor="#5ed08c" sparkData={pulse?.slice(-10).map(p => ({value: p.completed})) ?? []} />
-        <StatCard title="Dead Letters" value={metrics?.failed.value ?? 0} delta="↗ 2.1%" deltaTone="text-rose-300" icon={TriangleAlert} sparkColor="#f45b7a" sparkData={pulse?.slice(-10).map(p => ({value: p.failed})) ?? []} />
+        <StatCard title="Pending" value={metrics?.active.value ?? 0} delta={metrics?.active?.change ? `${metrics.active.change > 0 ? "↗" : "↘"} ${Math.abs(metrics.active.change)}%` : ""} deltaTone={metrics?.active?.change && metrics.active.change > 0 ? "text-rose-300" : "text-emerald-300"} icon={FolderKanban} sparkColor="#7c6df2" sparkData={pulse?.slice(-10).map(p => ({value: p.scheduled})) ?? []} />
+        <StatCard title="Processing" value={metrics?.processing.value ?? 0} delta={metrics?.processing?.change ? `${metrics.processing.change > 0 ? "↗" : "↘"} ${Math.abs(metrics.processing.change)}%` : ""} deltaTone={metrics?.processing?.change && metrics.processing.change > 0 ? "text-rose-300" : "text-emerald-300"} icon={Zap} sparkColor="#4da3ff" sparkData={pulse?.slice(-10).map(p => ({value: p.completed})) ?? []} />
+        <StatCard title="Completed" value={metrics?.completed.value ?? 0} delta={metrics?.completed?.change ? `${metrics.completed.change >= 0 ? "↗" : "↘"} ${Math.abs(metrics.completed.change)}%` : ""} deltaTone={metrics?.completed?.change && metrics.completed.change >= 0 ? "text-emerald-300" : "text-rose-300"} icon={ShieldCheck} sparkColor="#5ed08c" sparkData={pulse?.slice(-10).map(p => ({value: p.completed})) ?? []} />
+        <StatCard title="Dead Letters" value={metrics?.failed.value ?? 0} delta={metrics?.failed?.change ? `${metrics.failed.change > 0 ? "↗" : "↘"} ${Math.abs(metrics.failed.change)}%` : ""} deltaTone={metrics?.failed?.change && metrics.failed.change > 0 ? "text-rose-300" : "text-emerald-300"} icon={TriangleAlert} sparkColor="#f45b7a" sparkData={pulse?.slice(-10).map(p => ({value: p.failed})) ?? []} />
       </div>
 
       {/* Middle grid */}
@@ -271,7 +240,7 @@ function DashboardView() {
           <div className="mb-3 flex items-center justify-between gap-3">
             <SectionTitle title="The Pulse Line" />
             <div className="flex items-center gap-2">
-              <button onClick={() => setPulseMetric(pulseMetric === 'Jobs/sec' ? 'Jobs/min' : 'Jobs/sec')} className="h-10 rounded-xl border border-white/10 bg-[#0b0e1c] px-3 text-sm text-white/75 hover:text-white transition">{pulseMetric} <ChevronDown className="inline-block h-4 w-4" /></button>
+              
               <button onClick={() => navigate('/metrics')} className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white/75 hover:text-white transition">View full metrics <ChevronDown className="inline-block h-4 w-4 rotate-[-90deg]" /></button>
             </div>
           </div>
@@ -361,7 +330,7 @@ function DashboardView() {
         <div className="rounded-2xl border border-white/10 bg-[#111528] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_30px_rgba(0,0,0,0.22)]">
           <div className="mb-3 flex items-center justify-between">
             <SectionTitle title="Job Latency (Queue Wait Time)" />
-            <button onClick={() => setLatencyMetric(latencyMetric === 'P95' ? 'Average' : 'P95')} className="h-8 rounded-xl border border-white/10 bg-[#0b0e1c] px-2.5 text-xs text-white/70">{latencyMetric} <ChevronDown className="inline-block h-3.5 w-3.5" /></button>
+            
           </div>
           <div className="mb-2 flex items-end gap-3">
             <div className="text-4xl font-semibold">{metrics?.p95Latency ? metrics.p95Latency.toFixed(2) : '0.00'}s</div>
@@ -388,7 +357,7 @@ function DashboardView() {
         <div className="rounded-2xl border border-white/10 bg-[#111528] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_30px_rgba(0,0,0,0.22)]">
           <div className="mb-3 flex items-center justify-between">
             <SectionTitle title="Throughput" />
-            <button onClick={() => setThroughputMetric(throughputMetric === 'Jobs/min' ? 'Jobs/sec' : 'Jobs/min')} className="h-8 rounded-xl border border-white/10 bg-[#0b0e1c] px-2.5 text-xs text-white/70">{throughputMetric} <ChevronDown className="inline-block h-3.5 w-3.5" /></button>
+            
           </div>
           <div className="mb-2 flex items-end gap-3">
             <div className="text-4xl font-semibold">{metrics?.throughput ? metrics.throughput.toLocaleString() : '0'}</div>
@@ -771,19 +740,31 @@ function WorkersView() {
   );
 }
 
-function PlaceholderView({ title }: { title: string }) {
+
+
+function StatusPill({ status }: { status?: string }) {
+  const tones: Record<string, string> = {
+    PROCESSING: "bg-sky-500/15 text-sky-300 ring-sky-500/20",
+    COMPLETED: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/20",
+    FAILED: "bg-rose-500/15 text-rose-300 ring-rose-500/20",
+    DEAD_LETTER: "bg-rose-500/15 text-rose-300 ring-rose-500/20",
+    PENDING: "bg-violet-500/15 text-violet-300 ring-violet-500/20",
+    DELAYED: "bg-amber-500/15 text-amber-300 ring-amber-500/20",
+    ONLINE: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/20",
+    OFFLINE: "bg-white/10 text-white/50 ring-white/10",
+  };
+  const key = status ?? '';
+  return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ring-1 ${tones[key] ?? tones.PENDING}`}>{status ?? '—'}</span>;
+}
+
+function LegendDot({ color, label }: { color: string; label: string }) {
   return (
-    <div className="flex flex-col items-center justify-center h-[60vh] text-white/50">
-      <div className="h-16 w-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
-        <Activity className="h-8 w-8 text-white/30" />
-      </div>
-      <h2 className="text-xl font-semibold text-white mb-2">{title}</h2>
-      <p>This view is under construction.</p>
+    <div className="flex items-center gap-2">
+      <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
+      <span>{label}</span>
     </div>
   );
 }
-
-// ================= HELPERS & COMPONENTS =================
 
 function EnqueueJobModalWrapper({ isEnqueueOpen, setIsEnqueueOpen }: any) {
   const { enqueueJob } = useAura();
@@ -810,17 +791,17 @@ function StatCard({ title, value, delta, deltaTone, icon: Icon, sparkColor, spar
         </div>
       </div>
       <div className="mt-4 flex items-end justify-between gap-3">
-        <div className={`text-sm font-medium ${deltaTone}`}>{delta} <span className="text-white/45 font-normal">vs last hour</span></div>
+        {delta ? <div className={`text-sm font-medium ${deltaTone}`}>{delta} <span className="text-white/45 font-normal">vs last hour</span></div> : <div />}
         <div className="h-12 w-24">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={sparkData.length ? sparkData : [{value:0},{value:0}]}>
               <defs>
-                <linearGradient id={`g-${title}`} x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id={`g-${title.replace(/\s+/g, '')}`} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor={sparkColor} stopOpacity={0.45} />
                   <stop offset="95%" stopColor={sparkColor} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <Area type="monotone" dataKey="value" stroke={sparkColor} fill={`url(#g-${title})`} strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Area type="monotone" dataKey="value" stroke={sparkColor} fill={`url(#g-${title.replace(/\s+/g, '')})`} strokeWidth={2} dot={false} isAnimationActive={false} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -834,30 +815,6 @@ function SectionTitle({ title, action, onAction }: any) {
     <div className="mb-3 flex items-center justify-between gap-3 w-full">
       <h3 className="text-base font-semibold text-white">{title}</h3>
       {action ? <button onClick={onAction} className="text-sm text-white/55 hover:text-white transition">{action}</button> : null}
-    </div>
-  );
-}
-
-function StatusPill({ status }: { status?: string }) {
-  const tones: Record<string, string> = {
-    PROCESSING: "bg-sky-500/15 text-sky-300 ring-sky-500/20",
-    COMPLETED: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/20",
-    FAILED: "bg-rose-500/15 text-rose-300 ring-rose-500/20",
-    DEAD_LETTER: "bg-rose-500/15 text-rose-300 ring-rose-500/20",
-    PENDING: "bg-violet-500/15 text-violet-300 ring-violet-500/20",
-    DELAYED: "bg-amber-500/15 text-amber-300 ring-amber-500/20",
-    ONLINE: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/20",
-    OFFLINE: "bg-white/10 text-white/50 ring-white/10",
-  };
-  const key = status ?? '';
-  return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ring-1 ${tones[key] ?? tones.PENDING}`}>{status ?? '—'}</span>;
-}
-
-function LegendDot({ color, label }: { color: string; label: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
-      <span>{label}</span>
     </div>
   );
 }
