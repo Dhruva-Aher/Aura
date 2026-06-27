@@ -8,7 +8,7 @@ export const queueEvents = new EventEmitter(); // For SSE
 export interface CreateJobDTO {
   idempotencyKey: string;
   name: string;
-  payload: any;
+  payload: Prisma.InputJsonValue;
   priority?: number;
   queue?: 'high' | 'default' | 'low';
   scheduledFor?: Date;
@@ -28,8 +28,7 @@ function queueFromInput(inputQueue: CreateJobDTO['queue'], priority: number): ke
   return 'default';
 }
 
-export class QueueService {
-  async enqueue(data: CreateJobDTO) {
+export async function enqueue(data: CreateJobDTO) {
     const priority = data.priority || 0;
     const maxAttempts = data.maxAttempts || 3;
     const scheduledFor = data.scheduledFor || new Date();
@@ -87,7 +86,7 @@ export class QueueService {
     });
   }
 
-  async replayDlq(jobId: string) {
+export async function replayDlq(jobId: string) {
     return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const job = await tx.job.update({
         where: { id: jobId, status: 'DEAD_LETTER' },
@@ -105,7 +104,7 @@ export class QueueService {
     });
   }
 
-  async discardDlq(jobId: string) {
+export async function discardDlq(jobId: string) {
     return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const job = await tx.job.delete({
         where: { id: jobId, status: 'DEAD_LETTER' }
@@ -116,7 +115,7 @@ export class QueueService {
     });
   }
 
-  async retryJob(jobId: string) {
+export async function retryJob(jobId: string) {
     return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const job = await tx.job.update({
         where: { id: jobId, status: { in: ['FAILED', 'DEAD_LETTER'] } },
@@ -142,4 +141,3 @@ export class QueueService {
       return job;
     });
   }
-}

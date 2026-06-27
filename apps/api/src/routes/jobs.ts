@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { QueueService, redis } from '../services/QueueService';
+import { enqueue, replayDlq, discardDlq, retryJob, redis } from '../services/QueueService';
 import { AdaptiveThreshold } from '../services/AdaptiveThreshold';
 import { prisma } from '@aura/database';
+import { randomUUID } from 'crypto';
+import { getCursorWhereClause, buildPaginatedResponse } from '../utils/pagination';
 
 const router = Router();
-const queueService = new QueueService();
 const MAX_PAGE_SIZE = 200;
 const MAX_QUEUE_THRESHOLD = Number(process.env.MAX_QUEUE_THRESHOLD || 10000);
 const ENQUEUE_RATE_LIMIT_PER_SEC = Number(process.env.ENQUEUE_RATE_LIMIT_PER_SEC || 200);
@@ -81,11 +82,11 @@ router.post('/', async (req, res) => {
     }
 
     admissionAccepted = true;
-    const job = await queueService.enqueue(data);
+    const job = await enqueue(data);
     redis.incr(BP_ACCEPTED_KEY).catch(() => {});
     res.json(job);
-  } catch (err: any) {
-    res.status(400).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(400).json({ error: (err instanceof Error ? err.message : String(err)) });
   } finally {
     if (admissionAccepted) {
       redis.releaseAdmission('aura:backpressure:reservations').catch(() => {});
@@ -110,8 +111,8 @@ router.get('/recent', async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
     res.json(jobs);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
   }
 });
 
@@ -136,29 +137,16 @@ router.get('/', async (req, res) => {
     const jobs = await prisma.job.findMany({
       where: {
         ...where,
-        ...(cursorCreatedAt && cursorId ? {
-          OR: [
-            { createdAt: { lt: new Date(cursorCreatedAt) } },
-            { AND: [{ createdAt: new Date(cursorCreatedAt) }, { id: { lt: cursorId } }] }
-          ]
-        } : {})
+        ...getCursorWhereClause(cursorCreatedAt, cursorId)
       },
       take: limit + 1,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }]
     });
 
-    const hasMore = jobs.length > limit;
-    const items = hasMore ? jobs.slice(0, limit) : jobs;
-    const last = items[items.length - 1];
     const total = await prisma.job.count({ where });
-
-    res.json({
-      items,
-      total,
-      nextCursor: hasMore && last ? { cursorCreatedAt: last.createdAt.toISOString(), cursorId: last.id } : null
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.json(buildPaginatedResponse(jobs, limit, total));
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
   }
 });
 
@@ -171,54 +159,42 @@ router.get('/dlq', async (req, res) => {
     const jobs = await prisma.job.findMany({
       where: {
         status: 'DEAD_LETTER',
-        ...(cursorCreatedAt && cursorId ? {
-          OR: [
-            { createdAt: { lt: new Date(cursorCreatedAt) } },
-            { AND: [{ createdAt: new Date(cursorCreatedAt) }, { id: { lt: cursorId } }] }
-          ]
-        } : {})
+        ...getCursorWhereClause(cursorCreatedAt, cursorId)
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit + 1,
     });
-    const hasMore = jobs.length > limit;
-    const items = hasMore ? jobs.slice(0, limit) : jobs;
-    const last = items[items.length - 1];
     const total = await prisma.job.count({ where: { status: 'DEAD_LETTER' } });
-    res.json({
-      items,
-      total,
-      nextCursor: hasMore && last ? { cursorCreatedAt: last.createdAt.toISOString(), cursorId: last.id } : null
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.json(buildPaginatedResponse(jobs, limit, total));
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
   }
 });
 
 router.post('/:id/replay', async (req, res) => {
   try {
-    const job = await queueService.replayDlq(req.params.id);
+    const job = await replayDlq(req.params.id);
     res.json(job);
-  } catch (err: any) {
-    res.status(400).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(400).json({ error: (err instanceof Error ? err.message : String(err)) });
   }
 });
 
 router.post('/:id/discard', async (req, res) => {
   try {
-    const job = await queueService.discardDlq(req.params.id);
+    const job = await discardDlq(req.params.id);
     res.json(job);
-  } catch (err: any) {
-    res.status(400).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(400).json({ error: (err instanceof Error ? err.message : String(err)) });
   }
 });
 
 router.post('/:id/retry', async (req, res) => {
   try {
-    const job = await queueService.retryJob(req.params.id);
+    const job = await retryJob(req.params.id);
     res.json(job);
-  } catch (err: any) {
-    res.status(400).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(400).json({ error: (err instanceof Error ? err.message : String(err)) });
   }
 });
 

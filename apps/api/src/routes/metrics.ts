@@ -11,8 +11,8 @@ router.get('/overview', async (req, res) => {
   try {
     const overview = await buildMetricsOverview();
     res.json(overview);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
   }
 });
 
@@ -81,8 +81,8 @@ router.get('/pulse', async (req, res) => {
     }
 
     res.json(points);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
   }
 });
 

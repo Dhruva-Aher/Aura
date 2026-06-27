@@ -45,8 +45,8 @@ router.get('/verify', async (_req, res) => {
       duplicateCompletions,
       backpressure: getBackpressureCounters(),
     });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
   }
 });
 

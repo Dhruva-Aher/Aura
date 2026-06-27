@@ -10,19 +10,19 @@ router.get('/', (req, res) => {
     'Connection': 'keep-alive'
   });
 
-  const sendEvent = (type: string, data: any) => {
+  const sendEvent = (type: string, data: unknown) => {
     res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
   };
 
-  const onJobUpdate = (job: any) => sendEvent('job_update', job);
-  const onMetrics = (metrics: any) => sendEvent('metrics_update', metrics);
-  const onJobCreated = (job: any) => sendEvent('job_created', job);
-  const onJobStarted = (job: any) => sendEvent('job_started', job);
-  const onJobCompleted = (job: any) => sendEvent('job_completed', job);
-  const onJobFailed = (job: any) => sendEvent('job_failed', job);
-  const onJobRetried = (job: any) => sendEvent('job_retried', job);
-  const onJobRequeued = (job: any) => sendEvent('job_requeued', job);
-  const onWorkerHeartbeat = (worker: any) => sendEvent('worker_heartbeat', worker);
+  const onJobUpdate = (job: unknown) => sendEvent('job_update', job);
+  const onMetrics = (metrics: unknown) => sendEvent('metrics_update', metrics);
+  const onJobCreated = (job: unknown) => sendEvent('job_created', job);
+  const onJobStarted = (job: unknown) => sendEvent('job_started', job);
+  const onJobCompleted = (job: unknown) => sendEvent('job_completed', job);
+  const onJobFailed = (job: unknown) => sendEvent('job_failed', job);
+  const onJobRetried = (job: unknown) => sendEvent('job_retried', job);
+  const onJobRequeued = (job: unknown) => sendEvent('job_requeued', job);
+  const onWorkerHeartbeat = (worker: unknown) => sendEvent('worker_heartbeat', worker);
 
   queueEvents.on('job_update', onJobUpdate);
   queueEvents.on('job_created', onJobCreated);

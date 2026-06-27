@@ -78,8 +78,8 @@ router.get('/health', async (req, res) => {
       { name: 'PostgreSQL', status: pgMs < 200 ? 'Healthy' : 'Degraded', ms: `${pgMs}ms`, state: pgMs < 200 ? 'ok' : 'degraded' },
       { name: 'System Status', status: overallState === 'ok' ? 'Healthy' : overallState === 'degraded' ? 'Degraded' : 'Overloaded', ms: `${backlogSize} queued`, state: overallState },
     ]);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
   }
 });
 
@@ -90,8 +90,8 @@ router.get('/workers/summary', async (_req, res) => {
       redis.scard('aura:workers:active'),
     ]);
     res.json({ totalWorkers, activeWorkers });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
   }
 });
 
@@ -101,8 +101,8 @@ router.get('/workers', async (req, res) => {
       orderBy: { lastHeartbeat: 'desc' }
     });
     res.json(workers);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
   }
 });
 
