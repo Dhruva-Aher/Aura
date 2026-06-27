@@ -26,7 +26,6 @@ import {
   RETRY_INTERVAL_MS,
 } from '../services/SchedulerLock';
 
-// ── Minimal fake Redis ────────────────────────────────────────────────────────
 
 interface FakeRedisStore {
   value: string | null;
@@ -45,12 +44,12 @@ function makeFakeRedis(store: FakeRedisStore) {
     isExpired() ? null : store.value;
 
   return {
-    // SET key value NX EX ttl
-    set: vi.fn((_key: string, value: string, mode: string, _opt: string, ttl: number) => {
-      if (mode !== 'NX') throw new Error('Fake only supports NX');
+    // SET key value EX ttl NX
+    set: vi.fn((_key: string, value: string, token: string, _ttl: string | number, mode: string) => {
+      if (mode !== 'NX' && token !== 'NX') throw new Error('Fake only supports NX');
       if (get() !== null) return Promise.resolve(null); // key exists
       store.value = value;
-      store.expiresAt = Date.now() + ttl * 1000;
+      store.expiresAt = Date.now() + (typeof _ttl === 'number' ? _ttl : parseInt(_ttl as string)) * 1000;
       return Promise.resolve('OK');
     }),
 
@@ -73,13 +72,11 @@ function makeFakeRedis(store: FakeRedisStore) {
   };
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeLock(redis: ReturnType<typeof makeFakeRedis>, instanceId = 'inst-A') {
   return new SchedulerLock(redis as any, instanceId);
 }
 
-// ── 1. tryAcquire — wins when lock is free ────────────────────────────────────
 
 describe('tryAcquire', () => {
   it('returns true and sets isLeader when lock is free', async () => {
@@ -137,7 +134,6 @@ describe('tryAcquire', () => {
   });
 });
 
-// ── 2. Renewal ────────────────────────────────────────────────────────────────
 
 describe('renewSchedulerLock', () => {
   it('extends TTL when we are the holder', async () => {
@@ -176,7 +172,6 @@ describe('renewSchedulerLock', () => {
   });
 });
 
-// ── 3. Release ────────────────────────────────────────────────────────────────
 
 describe('releaseSchedulerLock', () => {
   it('deletes the lock when we are the holder', async () => {
@@ -204,7 +199,6 @@ describe('releaseSchedulerLock', () => {
   });
 });
 
-// ── 4. startRenewing — onLost callback ───────────────────────────────────────
 
 describe('startRenewing', () => {
   beforeEach(() => { vi.useFakeTimers(); });
@@ -263,7 +257,6 @@ describe('startRenewing', () => {
   });
 });
 
-// ── 5. startRetrying — onAcquired callback ───────────────────────────────────
 
 describe('startRetrying', () => {
   beforeEach(() => { vi.useFakeTimers(); });
@@ -295,7 +288,6 @@ describe('startRetrying', () => {
   });
 });
 
-// ── 6. Graceful release ───────────────────────────────────────────────────────
 
 describe('release()', () => {
   it('frees the lock and clears timers', async () => {
@@ -324,7 +316,6 @@ describe('release()', () => {
   });
 });
 
-// ── 7. Full failover simulation ───────────────────────────────────────────────
 
 describe('Full leader failover', () => {
   beforeEach(() => { vi.useFakeTimers(); });
@@ -361,7 +352,6 @@ describe('Full leader failover', () => {
   });
 });
 
-// ── 8. isLeader state machine ─────────────────────────────────────────────────
 
 describe('isLeader state transitions', () => {
   it('false → true on acquire → false after release', async () => {

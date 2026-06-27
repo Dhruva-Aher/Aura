@@ -2,7 +2,6 @@ import { prisma, Prisma } from '@aura/database';
 import { createRedisClient } from '@aura/redis';
 import { randomUUID } from 'crypto';
 import os from 'os';
-import { FailureInjector } from './FailureInjector';
 import { createLogger } from './Logger';
 
 const redis = createRedisClient();
@@ -50,17 +49,14 @@ export class Worker {
   private concurrency: number;
   private activeJobs: number = 0;
   private claimMisses = 0;
-  private injector: FailureInjector;
 
   constructor(
     pool: string = 'default',
     concurrency: number = 20,
-    injector: FailureInjector = new FailureInjector(),
   ) {
     this.id       = `worker-${WORKER_ID.substring(0, 8)}`;
     this.pool     = pool;
     this.concurrency = concurrency;
-    this.injector = injector;
   }
 
   async start() {
@@ -128,8 +124,8 @@ export class Worker {
           memory: mem,
           at: Date.now(),
         }));
-      } catch (err: any) {
-        baseLog.warn('Heartbeat failed', { workerId: this.id, err: err.message });
+      } catch (err: unknown) {
+        baseLog.warn('Heartbeat failed', { workerId: this.id, err: (err instanceof Error ? err.message : String(err)) });
       }
     }
   }
@@ -170,8 +166,8 @@ export class Worker {
           this.claimMisses++;
           await new Promise(r => setTimeout(r, 1000)); // Sleep if no jobs
         }
-      } catch (err: any) {
-        baseLog.error('Loop error', { workerId: this.id, loopIndex, err: err.message });
+      } catch (err: unknown) {
+        baseLog.error('Loop error', { workerId: this.id, loopIndex, err: (err instanceof Error ? err.message : String(err)) });
         await new Promise(r => setTimeout(r, 2000));
       }
     }
@@ -184,6 +180,18 @@ export class Worker {
       const job = await prisma.job.findUnique({ where: { id: jobId } });
       if (!job) {
         await redis.completeJob('aura:leased', 'aura:meta:', jobId);
+        return;
+      }
+
+      // Atomically claim the execution slot for this job attempt.
+      // If another worker holds it, we lost the race (e.g. we woke up from a pause).
+      // We must do this BEFORE Postgres to avoid unnecessary DB writes and locking.
+      const FENCE_TTL_SEC = 300;
+      const fenceKey = `aura:executing:${jobId}`;
+      const fenceResult = await redis.claimExecution(fenceKey, this.id, FENCE_TTL_SEC);
+      if (fenceResult !== 'OK') {
+        baseLog.warn('Execution fence already held — skipping duplicate', { workerId: this.id, jobId });
+        // DO NOT call completeJob here. The worker holding the fence owns the Redis state.
         return;
       }
 
@@ -200,12 +208,15 @@ export class Worker {
         });
         return true;
       });
+
       if (!claimed) {
-        // Job is no longer PENDING — already claimed by another worker or completed.
-        // Clean up our Redis lease entry and abandon without executing.
-        await redis.completeJob('aura:leased', 'aura:meta:', jobId);
+        // Job is no longer PENDING (e.g., cancelled or already completed).
+        // Release our execution fence and abandon. Do NOT delete Redis metadata,
+        // as the actor that changed the state is responsible for cleanup.
+        await redis.del(fenceKey).catch(() => {});
         return;
       }
+
       await redis.publish(EVENT_CHANNEL, JSON.stringify({
         type: 'job_started',
         jobId,
@@ -216,21 +227,6 @@ export class Worker {
       const scheduledTime = job.scheduledFor ? job.scheduledFor.getTime() : job.createdAt.getTime();
       const latency = Math.max(0, Date.now() - scheduledTime);
       await redis.zadd('aura:metrics:latency', Date.now(), `${latency}:${jobId}`);
-
-      // ── Idempotency fence ──────────────────────────────────────────────────
-      // Atomically claim the execution slot for this job attempt.  If another
-      // worker already claimed it (e.g. the reaper re-enqueued a slow job while
-      // the original worker was still running) we release the lease and skip
-      // execution entirely — the other worker will complete or fail the job.
-      // TTL = 5 min: covers worst-case job duration; auto-cleared on success.
-      const FENCE_TTL_SEC = 300;
-      const fenceKey = `aura:executing:${jobId}`;
-      const fenceResult = await redis.claimExecution(fenceKey, this.id, FENCE_TTL_SEC);
-      if (fenceResult !== 'OK') {
-        baseLog.warn('Execution fence already held — skipping duplicate', { workerId: this.id, jobId });
-        await redis.completeJob('aura:leased', 'aura:meta:', jobId);
-        return;
-      }
 
       // Lease extension loop — conditional: only renew if the reaper hasn't evicted this job.
       leaseInterval = setInterval(async () => {
@@ -245,23 +241,17 @@ export class Worker {
 
       // --- EXECUTE TASK ---
       baseLog.info('Executing job', { workerId: this.id, jobId, name: job.name });
-      await this.injector.simulateExecution();
 
       // Deterministic failure: generator (or any caller) can set shouldFail=true
-      // in the job payload.  FailureInjector adds env-driven chaos on top.
+      // in the job payload.
       const payload = job.payload as Record<string, unknown> | null;
       if (payload?.shouldFail === true) {
         throw new Error('Injected failure (shouldFail=true in payload)');
       }
-      if (this.injector.shouldFail()) {
-        throw new Error(`Injected failure [mode=${this.injector.config.mode}]`);
-      }
-      // Crash mode: simulate abrupt process death so the lease expires and the
-      // reaper proves the recovery path (reap → delayed → retry).
-      if (this.injector.shouldCrash()) {
-        baseLog.error('Simulating process crash mid-job — exiting', { workerId: this.id, jobId });
-        process.exit(1);
-      }
+      
+      // We simulate some execution time for testing purposes (since there's no real workload).
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       // --- END EXECUTE ---
 
       // Success — clear the idempotency fence so retries are not blocked
@@ -296,8 +286,8 @@ export class Worker {
         baseLog.info('Completed job', { workerId: this.id, jobId, processingTimeMs: processingTime });
       }
 
-    } catch (err: any) {
-      baseLog.warn('Job failed', { workerId: this.id, jobId, err: err.message });
+    } catch (err: unknown) {
+      baseLog.warn('Job failed', { workerId: this.id, jobId, err: (err instanceof Error ? err.message : String(err)) });
       
       const result = await redis.failJob(
         'aura:leased',
@@ -334,12 +324,12 @@ export class Worker {
           where: { id: jobId },
           data: { 
             status: newStatus,
-            errorLog: { message: err.message, stack: err.stack },
+            errorLog: { message: (err instanceof Error ? err.message : String(err)), stack: err instanceof Error ? err.stack : undefined },
             attempts: { increment: 1 }
           }
         }),
         prisma.jobEvent.create({
-          data: { jobId, type: 'FAILED', message: `Failed: ${err.message}. Result: ${newStatus}${result === 'REQUEUED' && newStatus === 'DEAD_LETTER' ? ' (requeue verification failed)' : ''}` }
+          data: { jobId, type: 'FAILED', message: `Failed: ${(err instanceof Error ? err.message : String(err))}. Result: ${newStatus}${result === 'REQUEUED' && newStatus === 'DEAD_LETTER' ? ' (requeue verification failed)' : ''}` }
         })
       ]);
       await redis.publish(EVENT_CHANNEL, JSON.stringify({

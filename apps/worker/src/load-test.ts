@@ -33,7 +33,6 @@ import { prisma } from '@aura/database';
 import { createRedisClient } from '@aura/redis';
 import { randomUUID } from 'crypto';
 
-// ── CLI args ──────────────────────────────────────────────────────────────────
 
 const argv = process.argv.slice(2);
 const scenario = (argv.find(a => !a.startsWith('--')) ?? 'burst') as Scenario;
@@ -54,7 +53,6 @@ const COMPLETION_POLL_INTERVAL_MS = 500;
 
 type Scenario = 'burst' | 'steady' | 'mixed' | 'priority-storm' | 'failure-flood';
 
-// ── Stats helpers ─────────────────────────────────────────────────────────────
 
 export function percentile(sorted: number[], p: number): number {
   if (sorted.length === 0) return 0;
@@ -80,7 +78,6 @@ interface LatencySummary {
   p50: number; p95: number; p99: number; max: number; mean: number; count: number;
 }
 
-// ── Job payload builders per scenario ────────────────────────────────────────
 
 function buildPayload(scenario: Scenario, idx: number): {
   name: string;
@@ -113,7 +110,6 @@ function buildPayload(scenario: Scenario, idx: number): {
   }
 }
 
-// ── Enqueue helpers ───────────────────────────────────────────────────────────
 
 async function enqueueOne(
   scenario: Scenario,
@@ -157,7 +153,6 @@ async function getRedis() {
   return _redis;
 }
 
-// ── Burst enqueue ─────────────────────────────────────────────────────────────
 
 async function runBurst(): Promise<Array<{ jobId: string; enqueuedAt: number; latencyMs: number }>> {
   const results: Array<{ jobId: string; enqueuedAt: number; latencyMs: number }> = [];
@@ -179,7 +174,6 @@ async function runBurst(): Promise<Array<{ jobId: string; enqueuedAt: number; la
   return results;
 }
 
-// ── Steady-rate enqueue ───────────────────────────────────────────────────────
 
 async function runSteady(): Promise<Array<{ jobId: string; enqueuedAt: number; latencyMs: number }>> {
   const results: Array<{ jobId: string; enqueuedAt: number; latencyMs: number }> = [];
@@ -207,7 +201,6 @@ async function runSteady(): Promise<Array<{ jobId: string; enqueuedAt: number; l
   return results;
 }
 
-// ── Wait for completion ───────────────────────────────────────────────────────
 
 interface CompletionResult {
   completed: number;
@@ -263,7 +256,6 @@ async function waitForCompletion(
   return result;
 }
 
-// ── Queue depth snapshot ──────────────────────────────────────────────────────
 
 async function queueDepth(): Promise<number> {
   const redis = await getRedis();
@@ -275,7 +267,6 @@ async function queueDepth(): Promise<number> {
   return h + d + l;
 }
 
-// ── Report ────────────────────────────────────────────────────────────────────
 
 function fmt(ms: number): string {
   return ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`;
@@ -332,7 +323,6 @@ function printReport(
   console.log(`╚══════════════════════════════════════════════════════════╝`);
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
   console.log(`\n🚀 Aura Load Test  scenario=${scenario}  jobs=${TOTAL_JOBS}  concurrency=${CONCURRENCY}`);

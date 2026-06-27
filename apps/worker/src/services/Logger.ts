@@ -32,7 +32,6 @@ export interface LogEntry {
 
 export type LogSink = (entry: LogEntry) => void;
 
-// ── ANSI colour helpers (dev only) ────────────────────────────────────────────
 
 const COLOURS: Record<LogLevel, string> = {
   debug: '\x1b[36m',   // cyan
@@ -53,7 +52,6 @@ function prettyLine(entry: LogEntry): string {
   return `${colour}${level}${RESET} ${entry.ts.slice(11, 23)} ${label} ${msg}${ctxStr}`;
 }
 
-// ── Logger class ──────────────────────────────────────────────────────────────
 
 const isJson = process.env.LOG_FORMAT === 'json' || process.env.NODE_ENV === 'production';
 

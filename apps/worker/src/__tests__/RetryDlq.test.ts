@@ -12,7 +12,6 @@
 
 import { describe, it, expect, vi } from 'vitest';
 
-// ── Helpers (reused from JobLifecycle.test.ts) ────────────────────────────────
 
 class FakeSortedSet {
   private entries: Map<string, number> = new Map();
@@ -47,7 +46,6 @@ class FakeHash {
   }
 }
 
-// ── Pure TS backoff formula matching REAP_JOBS Lua ────────────────────────────
 // KEYS[6] = aura:delayed   ARGV[1] = nowMs
 // attempts is the value AFTER hincrby (starts at 1 on first crash)
 //   backoffMs = min(2^(attempts-1) * 5000, 300_000)
@@ -86,7 +84,6 @@ function simulateReapWithBackoff(
   return results;
 }
 
-// ── Exponential backoff formula ───────────────────────────────────────────────
 
 describe('REAP_JOBS — exponential backoff schedule', () => {
   it('first crash (attempts=1) → 5 s hold', () => {
@@ -117,7 +114,6 @@ describe('REAP_JOBS — exponential backoff schedule', () => {
   });
 });
 
-// ── Backoff integration with reap simulation ──────────────────────────────────
 
 describe('REAP_JOBS — backoff applied in sorted-set score', () => {
   it('first reap puts job at now + 5 s', () => {
@@ -166,7 +162,6 @@ describe('REAP_JOBS — backoff applied in sorted-set score', () => {
   });
 });
 
-// ── Max retry enforcement ─────────────────────────────────────────────────────
 
 describe('REAP_JOBS — max retry limit enforcement', () => {
   it('dead-letters at exactly maxAttempts (no extra retry)', () => {
@@ -224,7 +219,6 @@ describe('REAP_JOBS — max retry limit enforcement', () => {
   });
 });
 
-// ── Jitter bounds ─────────────────────────────────────────────────────────────
 
 describe('Backoff jitter bounds', () => {
   it('jitter is within [0, 10% of backoff]', () => {
@@ -249,7 +243,6 @@ describe('Backoff jitter bounds', () => {
   });
 });
 
-// ── DLQ replay correctness ────────────────────────────────────────────────────
 
 interface JobRecord {
   id: string;
@@ -373,7 +366,6 @@ describe('DLQ replay — status guard and attempts reset', () => {
   });
 });
 
-// ── DLQ discard correctness ───────────────────────────────────────────────────
 
 describe('DLQ discard — status guard and deletion', () => {
   it('removes a DEAD_LETTER job', async () => {
@@ -403,7 +395,6 @@ describe('DLQ discard — status guard and deletion', () => {
   });
 });
 
-// ── retryJob — attempts reset, queue preserved ───────────────────────────────
 
 describe('retryJob — manual retry from FAILED or DEAD_LETTER', () => {
   it('resets attempts to 0 and sets status to PENDING for a FAILED job', async () => {

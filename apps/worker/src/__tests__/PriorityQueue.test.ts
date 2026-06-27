@@ -18,7 +18,6 @@ const HIGH    = 'aura:queue:high';
 const DEFAULT = 'aura:queue:default';
 const LOW     = 'aura:queue:low';
 
-// ── 1. high-priority pool ordering ───────────────────────────────────────────
 
 describe('high-priority pool', () => {
   it('always starts with high queue', () => {
@@ -52,7 +51,6 @@ describe('high-priority pool', () => {
   });
 });
 
-// ── 2. low-priority pool ordering ────────────────────────────────────────────
 
 describe('low-priority pool', () => {
   it('always starts with low queue', () => {
@@ -75,7 +73,6 @@ describe('low-priority pool', () => {
   });
 });
 
-// ── 3. default pool ordering ──────────────────────────────────────────────────
 
 describe('default pool', () => {
   it('always starts with high queue (urgent jobs first)', () => {
@@ -114,7 +111,6 @@ describe('default pool', () => {
   });
 });
 
-// ── 4. Anti-starvation: low-priority jobs drain eventually ───────────────────
 
 describe('Anti-starvation guarantee', () => {
   it('low queue appears at least once every 5 consecutive polls for high-priority pool', () => {
@@ -134,7 +130,6 @@ describe('Anti-starvation guarantee', () => {
   });
 });
 
-// ── 5. Mixed-queue simulation: high drains before low ────────────────────────
 
 describe('Mixed queue simulation — high drains before low', () => {
   /**
@@ -199,7 +194,6 @@ describe('Mixed queue simulation — high drains before low', () => {
   });
 });
 
-// ── 6. ZPOPMAX score semantics ────────────────────────────────────────────────
 
 describe('Priority score semantics (ZPOPMAX)', () => {
   /**

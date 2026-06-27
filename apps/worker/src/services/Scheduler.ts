@@ -35,8 +35,8 @@ export class Scheduler {
     while (this.isRunning) {
       try {
         await this.loop();
-      } catch (err: any) {
-        log.error('Loop crashed unexpectedly — restarting in 5s', { err: err.message });
+      } catch (err: unknown) {
+        log.error('Loop crashed unexpectedly — restarting in 5s', { err: (err instanceof Error ? err.message : String(err)) });
         await new Promise(r => setTimeout(r, 5000));
       }
     }
@@ -115,8 +115,8 @@ export class Scheduler {
         durationMs,
         completedAt:  Date.now(),
       }).catch(() => {});
-    } catch (err: any) {
-      log.error('Failed to reconcile jobs', { err: err.message });
+    } catch (err: unknown) {
+      log.error('Failed to reconcile jobs', { err: (err instanceof Error ? err.message : String(err)) });
     }
   }
 
@@ -127,23 +127,42 @@ export class Scheduler {
       take: limit,
       orderBy: { updatedAt: 'desc' }
     });
-    let recovered = 0;
+    if (pendingJobs.length === 0) return;
+
+    // Pipeline all 5 queue checks for all jobs into a single round-trip.
+    const pipe = redis.pipeline();
     for (const job of pendingJobs) {
-      const [high, def, low, delayed, leased] = await Promise.all([
-        redis.zscore('aura:queue:high', job.id),
-        redis.zscore('aura:queue:default', job.id),
-        redis.zscore('aura:queue:low', job.id),
-        redis.zscore('aura:delayed', job.id),
-        redis.zscore('aura:leased', job.id),
-      ]);
+      pipe.zscore('aura:queue:high', job.id);
+      pipe.zscore('aura:queue:default', job.id);
+      pipe.zscore('aura:queue:low', job.id);
+      pipe.zscore('aura:delayed', job.id);
+      pipe.zscore('aura:leased', job.id);
+    }
+    const results = await pipe.exec();
+    if (!results) return;
+
+    let recovered = 0;
+    const writePipe = redis.pipeline();
+    
+    for (let i = 0; i < pendingJobs.length; i++) {
+      const baseIdx = i * 5;
+      const high    = results[baseIdx][1];
+      const def     = results[baseIdx + 1][1];
+      const low     = results[baseIdx + 2][1];
+      const delayed = results[baseIdx + 3][1];
+      const leased  = results[baseIdx + 4][1];
+
       if (high !== null || def !== null || low !== null || delayed !== null || leased !== null) continue;
 
+      const job = pendingJobs[i];
       const queueRaw = await redis.hget(`aura:meta:${job.id}`, 'queue');
       const activeKey = queueRaw === 'high' ? 'aura:queue:high' : queueRaw === 'low' ? 'aura:queue:low' : 'aura:queue:default';
-      await redis.zadd(activeKey, job.priority, job.id);
+      writePipe.zadd(activeKey, job.priority, job.id);
       recovered++;
     }
+
     if (recovered > 0) {
+      await writePipe.exec();
       log.info('Recovered orphaned PENDING jobs', { recovered, checked: pendingJobs.length });
     }
   }
@@ -299,12 +318,12 @@ export class Scheduler {
         if (now - this.lastSloSweep > 30000) {
           this.lastSloSweep = now;
           await this.evaluateAndPublishSlos(now).catch((err: any) =>
-            log.warn('SLO evaluation failed', { err: err.message }),
+            log.warn('SLO evaluation failed', { err: (err instanceof Error ? err.message : String(err)) }),
           );
         }
 
-      } catch (err: any) {
-        log.error('Loop iteration error', { err: err.message });
+      } catch (err: unknown) {
+        log.error('Loop iteration error', { err: (err instanceof Error ? err.message : String(err)) });
       }
       
       await new Promise(r => setTimeout(r, 100));

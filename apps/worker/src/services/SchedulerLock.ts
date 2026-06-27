@@ -13,6 +13,10 @@
  *     can start scheduling without waiting for TTL expiry.
  */
 
+import { Redis } from 'ioredis';
+import { createLogger } from './Logger';
+
+const log = createLogger('SchedulerLock');
 import { randomUUID } from 'crypto';
 import { createRedisClient } from '@aura/redis';
 
@@ -47,9 +51,9 @@ export class SchedulerLock {
     const result = await this.redis.set(
       SCHEDULER_LOCK_KEY,
       this.instanceId,
-      'NX',
       'EX',
       LOCK_TTL_SEC,
+      'NX',
     );
     this._isLeader = result === 'OK';
     return this._isLeader;
@@ -77,7 +81,7 @@ export class SchedulerLock {
         }
       } catch (err) {
         // Redis temporarily unavailable — stop renewing to be safe.
-        console.error('[SchedulerLock] Renewal failed:', err);
+        log.error('Renewal failed', { err: (err instanceof Error ? err.message : String(err)) });
         this._isLeader = false;
         this.stopRenewing();
         onLost();

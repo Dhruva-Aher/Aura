@@ -12,7 +12,6 @@
 
 import { describe, it, expect } from 'vitest';
 
-// ── Pure TypeScript reimplementation of ADMISSION_GATE Lua ───────────────────
 
 interface GateState {
   queueDepth: number;       // sum of high + default + low + delayed
@@ -44,7 +43,6 @@ function admissionGate(
   return { decision: 'ACCEPT', token: state.reservations + 1, projected };
 }
 
-// ── Queue depth checks ────────────────────────────────────────────────────────
 
 describe('Admission gate — queue depth limit', () => {
   it('accepts when queue is below threshold', () => {
@@ -91,7 +89,6 @@ describe('Admission gate — queue depth limit', () => {
   });
 });
 
-// ── Rate limit checks ─────────────────────────────────────────────────────────
 
 describe('Admission gate — per-second rate limit', () => {
   it('accepts when rate is below limit', () => {
@@ -129,7 +126,6 @@ describe('Admission gate — per-second rate limit', () => {
   });
 });
 
-// ── HTTP response contract ────────────────────────────────────────────────────
 // These tests validate what the API handler should return for each decision
 // without spinning up Express.  They test the branching logic that maps
 // GateDecision → HTTP status + headers + body.
@@ -186,7 +182,6 @@ describe('HTTP response contract', () => {
   });
 });
 
-// ── Rejection rate metric ─────────────────────────────────────────────────────
 
 describe('Backpressure rejection rate calculation', () => {
   function rejectionRate(accepted: number, rejected: number): number {

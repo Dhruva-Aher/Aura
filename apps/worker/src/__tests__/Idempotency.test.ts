@@ -20,7 +20,6 @@
 
 import { describe, it, expect, vi } from 'vitest';
 
-// ── Fake Redis idempotency store ──────────────────────────────────────────────
 // Models exactly the semantics of: SET key value NX EX ttl
 
 interface FenceEntry {
@@ -64,7 +63,6 @@ class FencedRedisStore {
   }
 }
 
-// ── 1–3. Basic fence semantics ────────────────────────────────────────────────
 
 describe('Execution fence — SET NX EX semantics', () => {
   it('first claim returns OK', () => {
@@ -99,7 +97,6 @@ describe('Execution fence — SET NX EX semantics', () => {
   });
 });
 
-// ── 4–5. Fence lifecycle (release on success, keep on failure) ────────────────
 
 describe('Fence lifecycle', () => {
   it('fence is cleared after successful completion', () => {
@@ -146,7 +143,6 @@ describe('Fence lifecycle', () => {
   });
 });
 
-// ── 6. Concurrent claim — exactly one winner ──────────────────────────────────
 
 describe('Concurrent claims — at most one winner', () => {
   it('among N simultaneous claims, exactly one returns OK', () => {
@@ -176,7 +172,6 @@ describe('Concurrent claims — at most one winner', () => {
   });
 });
 
-// ── 7. Independent fences per job ────────────────────────────────────────────
 
 describe('Fence isolation across jobs', () => {
   it('different jobs have independent fences', () => {
@@ -202,7 +197,6 @@ describe('Fence isolation across jobs', () => {
   });
 });
 
-// ── 8. TTL enforcement ────────────────────────────────────────────────────────
 
 describe('TTL enforcement', () => {
   it('fence is inaccessible exactly at TTL boundary', () => {
@@ -220,7 +214,6 @@ describe('TTL enforcement', () => {
   });
 });
 
-// ── 9. QueueService-level deduplication (idempotencyKey) ─────────────────────
 // The upsert in QueueService.enqueue() ensures the same idempotencyKey never
 // creates two separate rows.  We test the logic in isolation here.
 
@@ -261,7 +254,6 @@ describe('QueueService idempotency — upsert semantics', () => {
   });
 });
 
-// ── 10. Worker skip-execution path (fence already held) ──────────────────────
 
 describe('Worker skips execution when fence is already held', () => {
   it('tracks skip correctly via side-effect counter', async () => {

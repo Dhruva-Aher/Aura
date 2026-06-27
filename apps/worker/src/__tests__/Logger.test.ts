@@ -18,7 +18,6 @@
 import { describe, it, expect } from 'vitest';
 import { Logger, LogEntry, LogLevel } from '../services/Logger';
 
-// ── Test helpers ──────────────────────────────────────────────────────────────
 
 function captureSink(): { entries: LogEntry[]; sink: (e: LogEntry) => void } {
   const entries: LogEntry[] = [];
@@ -31,7 +30,6 @@ function makeLogger(service: string, sink: (e: LogEntry) => void, minLevel: LogL
   return new Logger(service, sink, minLevel);
 }
 
-// ── 1. JSON output fields ─────────────────────────────────────────────────────
 
 describe('Logger — output fields', () => {
   it('emits ts, level, service, msg', () => {
@@ -68,7 +66,6 @@ describe('Logger — output fields', () => {
   });
 });
 
-// ── 2. Log levels ─────────────────────────────────────────────────────────────
 
 describe('Logger — log levels', () => {
   it('debug() emits level=debug', () => {
@@ -96,7 +93,6 @@ describe('Logger — log levels', () => {
   });
 });
 
-// ── 3. Min-level filtering ────────────────────────────────────────────────────
 
 describe('Logger — min-level filtering', () => {
   it('debug filtered out when minLevel=info', () => {
@@ -130,7 +126,6 @@ describe('Logger — min-level filtering', () => {
   });
 });
 
-// ── 4. Child logger ───────────────────────────────────────────────────────────
 
 describe('Logger.child()', () => {
   it('merges parent context into every entry', () => {
@@ -164,7 +159,6 @@ describe('Logger.child()', () => {
   });
 });
 
-// ── 5. Sink receives LogEntry ─────────────────────────────────────────────────
 
 describe('Logger — sink contract', () => {
   it('sink is called exactly once per log call', () => {

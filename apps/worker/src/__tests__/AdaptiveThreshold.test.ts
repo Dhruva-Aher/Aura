@@ -25,7 +25,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // resolves from the test file location).
 import { AdaptiveThreshold } from '../../../../apps/api/src/services/AdaptiveThreshold';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeThreshold(overrides: Partial<ConstructorParameters<typeof AdaptiveThreshold>[0]> = {}) {
   return new AdaptiveThreshold({
@@ -41,7 +40,6 @@ function makeThreshold(overrides: Partial<ConstructorParameters<typeof AdaptiveT
 /** A getCompleted stub that always returns `n` jobs in the window. */
 const completedStub = (n: number) => async (_windowMs: number) => n;
 
-// ── 1. No throughput data → staticMax ────────────────────────────────────────
 
 describe('No drain data', () => {
   it('returns staticMax when getCompleted returns 0', async () => {
@@ -57,7 +55,6 @@ describe('No drain data', () => {
   });
 });
 
-// ── 2. Dynamic threshold formula ─────────────────────────────────────────────
 
 describe('Dynamic threshold calculation', () => {
   it('drainRate=50/s, safetyFactor=4, window=10s → threshold=2000', async () => {
@@ -82,7 +79,6 @@ describe('Dynamic threshold calculation', () => {
   });
 });
 
-// ── 3. Capped at staticMax ────────────────────────────────────────────────────
 
 describe('staticMax cap', () => {
   it('high drain rate does not exceed staticMax', async () => {
@@ -93,7 +89,6 @@ describe('staticMax cap', () => {
   });
 });
 
-// ── 4. Floored at minThreshold ────────────────────────────────────────────────
 
 describe('minThreshold floor', () => {
   it('very low drain rate is floored to minThreshold', async () => {
@@ -111,7 +106,6 @@ describe('minThreshold floor', () => {
   });
 });
 
-// ── 5–6. Cache behaviour ──────────────────────────────────────────────────────
 
 describe('Cache', () => {
   it('second call within refreshIntervalMs uses cached value', async () => {
@@ -145,7 +139,6 @@ describe('Cache', () => {
   });
 });
 
-// ── 7. lastDrainRatePerSec ────────────────────────────────────────────────────
 
 describe('lastDrainRatePerSec', () => {
   it('updates on every refresh', async () => {
@@ -160,7 +153,6 @@ describe('lastDrainRatePerSec', () => {
   });
 });
 
-// ── 8. Overload scenario: enqueueRate > drainRate ─────────────────────────────
 
 describe('Overload scenario', () => {
   it('system stabilises: threshold tightens as drain rate drops', async () => {
@@ -199,7 +191,6 @@ describe('Overload scenario', () => {
   });
 });
 
-// ── 11. Resilience to Redis errors ───────────────────────────────────────────
 
 describe('Resilience', () => {
   it('returns cached value when getCompleted throws', async () => {

@@ -22,7 +22,6 @@
 
 import { describe, it, expect, vi } from 'vitest';
 
-// ── Fake Redis ────────────────────────────────────────────────────────────────
 
 class FakeRedis {
   private sortedSets = new Map<string, Map<string, number>>();
@@ -85,7 +84,6 @@ class FakeRedis {
   }
 }
 
-// ── Fake Prisma ───────────────────────────────────────────────────────────────
 
 interface FakeJob {
   id: string;
@@ -107,7 +105,6 @@ class FakeDb {
   }
 }
 
-// ── Reconcile logic (pure TypeScript mirror of Scheduler.reconcilePendingJobs) ─
 
 async function reconcilePending(
   db: FakeDb,
@@ -158,7 +155,6 @@ async function reconcilePending(
   return { restored: totalRestored, skipped: totalSkipped };
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('Redis wipe → all PENDING jobs restored', () => {
   it('restores 3 PENDING jobs after Redis wipe', async () => {

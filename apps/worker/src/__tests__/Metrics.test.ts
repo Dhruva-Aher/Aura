@@ -12,7 +12,6 @@
 
 import { describe, it, expect } from 'vitest';
 
-// ── Pure TypeScript reimplementation of metricsSnapshot helpers ───────────────
 
 /**
  * Generic percentile over an array of latency values in ms.
@@ -49,7 +48,6 @@ function retryRate(retried1h: number, completed1h: number): number {
   return Number(((retried1h / completed1h) * 100).toFixed(2));
 }
 
-// ── Latency percentiles ───────────────────────────────────────────────────────
 
 describe('Latency percentile calculation', () => {
   it('returns 0 for empty array', () => {
@@ -113,7 +111,6 @@ describe('Latency percentile calculation', () => {
   });
 });
 
-// ── Throughput calculation ────────────────────────────────────────────────────
 
 describe('Throughput calculation (jobs/min)', () => {
   it('returns 0 when no jobs completed', () => {
@@ -131,7 +128,6 @@ describe('Throughput calculation (jobs/min)', () => {
   });
 });
 
-// ── Drain rate ────────────────────────────────────────────────────────────────
 
 describe('Drain rate (jobs/second)', () => {
   it('returns 0 when no jobs completed', () => {
@@ -149,7 +145,6 @@ describe('Drain rate (jobs/second)', () => {
   });
 });
 
-// ── Worker utilization ────────────────────────────────────────────────────────
 
 describe('Worker utilization calculation', () => {
   it('returns 0 when no jobs are leased', () => {
@@ -179,7 +174,6 @@ describe('Worker utilization calculation', () => {
   });
 });
 
-// ── Failure and retry rates ───────────────────────────────────────────────────
 
 describe('Failure rate calculation', () => {
   it('returns 0 when no jobs completed', () => {

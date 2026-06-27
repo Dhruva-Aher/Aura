@@ -16,7 +16,6 @@
 import { describe, it, expect } from 'vitest';
 import { percentile, summariseLatencies } from '../load-test';
 
-// ── percentile ────────────────────────────────────────────────────────────────
 
 describe('percentile()', () => {
   it('returns 0 for an empty array', () => {
@@ -59,7 +58,6 @@ describe('percentile()', () => {
   });
 });
 
-// ── summariseLatencies ────────────────────────────────────────────────────────
 
 describe('summariseLatencies()', () => {
   it('returns all-zero summary for empty input', () => {

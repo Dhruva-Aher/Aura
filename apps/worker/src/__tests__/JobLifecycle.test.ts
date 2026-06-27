@@ -11,7 +11,6 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Minimal in-memory Redis sorted set */
 class FakeSortedSet {
@@ -51,7 +50,6 @@ class FakeHash {
   }
 }
 
-// ── Simulate REAP_JOBS Lua script logic in TypeScript ─────────────────────────
 // This gives us a fast, deterministic test without a real Redis server.
 
 function simulateReapJobs(
@@ -79,7 +77,6 @@ function simulateReapJobs(
   return reaped;
 }
 
-// ── Postgres stub ─────────────────────────────────────────────────────────────
 
 interface JobRecord {
   id: string;
@@ -116,7 +113,6 @@ function makePrismaStub(initialJobs: JobRecord[]) {
   };
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('REAP_JOBS — reaped jobs go to delayed queue with 5 s hold', () => {
   it('puts retryable reaped job in aura:delayed, not active queue', () => {
@@ -187,7 +183,6 @@ describe('REAP_JOBS — reaped jobs go to delayed queue with 5 s hold', () => {
   });
 });
 
-// ── Worker crash recovery — Postgres side ─────────────────────────────────────
 
 describe('Reap handler — Postgres update correctness', () => {
   it('increments Postgres attempts count and sets status to PENDING on reap', async () => {
@@ -245,7 +240,6 @@ describe('Reap handler — Postgres update correctness', () => {
   });
 });
 
-// ── Full crash + recovery simulation ─────────────────────────────────────────
 
 describe('Worker crash → lease expiry → recovery flow', () => {
   it('full lifecycle: crash → reap → delayed → promote → re-claim', () => {
@@ -288,7 +282,6 @@ describe('Worker crash → lease expiry → recovery flow', () => {
   });
 });
 
-// ── Duplicate execution guard ─────────────────────────────────────────────────
 
 describe('Duplicate execution guard', () => {
   it('second worker cannot claim a job already in PROCESSING', async () => {

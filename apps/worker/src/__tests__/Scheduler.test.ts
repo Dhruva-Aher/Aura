@@ -10,7 +10,6 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// ── Minimal mock types ────────────────────────────────────────────────────────
 type RedisMock = {
   set: ReturnType<typeof vi.fn>;
   del: ReturnType<typeof vi.fn>;
@@ -41,7 +40,6 @@ function makeRedisMock(): RedisMock {
   };
 }
 
-// ── Build a Scheduler instance with injected mocks ───────────────────────────
 // We inline a testable version of Scheduler that accepts injected deps so we
 // don't need module-level mocking of the entire @aura/database and @aura/redis
 // packages.
@@ -100,7 +98,6 @@ class TestableScheduler {
   }
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('Scheduler reliability', () => {
   let redis: RedisMock;
@@ -192,7 +189,6 @@ describe('Scheduler reliability', () => {
   });
 });
 
-// ── Scheduler "offline" detection (unit test for system health logic) ─────────
 
 describe('system health — scheduler state detection', () => {
   function getSchedulerState(lastLoopRaw: string | null): 'ok' | 'degraded' | 'offline' {

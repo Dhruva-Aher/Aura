@@ -85,7 +85,6 @@ export const DEFAULT_THRESHOLDS: SloThresholds = {
   schedulerLagCritMs:  Number(process.env.SLO_SCHEDULER_LAG_CRIT_MS ?? 15_000),
 };
 
-// ── Pure evaluation ───────────────────────────────────────────────────────────
 
 export function evaluateSlos(
   metrics: SloMetrics,
@@ -93,7 +92,6 @@ export function evaluateSlos(
 ): SloResult[] {
   const results: SloResult[] = [];
 
-  // ── P95 queue latency ─────────────────────────────────────────────────────
   {
     const v = metrics.p95LatencyMs;
     const severity: SloSeverity =
@@ -114,7 +112,6 @@ export function evaluateSlos(
     });
   }
 
-  // ── Dead-letter rate ──────────────────────────────────────────────────────
   {
     const total = metrics.completed1h + metrics.dlqCount1h;
     const dlqPct = total > 0 ? (metrics.dlqCount1h / total) * 100 : 0;
@@ -136,7 +133,6 @@ export function evaluateSlos(
     });
   }
 
-  // ── Drain rate floor ──────────────────────────────────────────────────────
   {
     const v = metrics.drainRatePerSec;
     const severity: SloSeverity =
@@ -159,7 +155,6 @@ export function evaluateSlos(
     });
   }
 
-  // ── Worker availability ───────────────────────────────────────────────────
   {
     const v = metrics.onlineWorkers;
     const severity: SloSeverity = v === 0 ? 'critical' : 'ok';
@@ -177,7 +172,6 @@ export function evaluateSlos(
     });
   }
 
-  // ── Scheduler heartbeat lag ───────────────────────────────────────────────
   {
     const v = metrics.schedulerHeartbeatAgeMs;
     const isOffline = v < 0;

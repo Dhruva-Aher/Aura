@@ -28,7 +28,6 @@ import {
   SloThresholds,
 } from '../services/SloEvaluator';
 
-// ── Test helpers ──────────────────────────────────────────────────────────────
 
 const THRESHOLDS: SloThresholds = {
   p95LatencyWarnMs:   5_000,
@@ -57,7 +56,6 @@ function findSlo(results: ReturnType<typeof evaluateSlos>, id: string) {
   return r;
 }
 
-// ── 1. All SLOs ok ────────────────────────────────────────────────────────────
 
 describe('evaluateSlos — all within bounds', () => {
   it('returns 5 results', () => {
@@ -80,7 +78,6 @@ describe('evaluateSlos — all within bounds', () => {
   });
 });
 
-// ── 2. P95 latency ────────────────────────────────────────────────────────────
 
 describe('P95 latency SLO', () => {
   const base = healthyMetrics();
@@ -110,7 +107,6 @@ describe('P95 latency SLO', () => {
   });
 });
 
-// ── 3. Dead-letter rate ───────────────────────────────────────────────────────
 
 describe('Dead-letter rate SLO', () => {
   const base = healthyMetrics();
@@ -140,7 +136,6 @@ describe('Dead-letter rate SLO', () => {
   });
 });
 
-// ── 4. Drain rate ─────────────────────────────────────────────────────────────
 
 describe('Drain rate SLO', () => {
   const base = healthyMetrics();
@@ -162,7 +157,6 @@ describe('Drain rate SLO', () => {
   });
 });
 
-// ── 5. Worker availability ────────────────────────────────────────────────────
 
 describe('Worker availability SLO', () => {
   const base = healthyMetrics();
@@ -186,7 +180,6 @@ describe('Worker availability SLO', () => {
   });
 });
 
-// ── 6. Scheduler heartbeat ────────────────────────────────────────────────────
 
 describe('Scheduler heartbeat SLO', () => {
   const base = healthyMetrics();
@@ -213,7 +206,6 @@ describe('Scheduler heartbeat SLO', () => {
   });
 });
 
-// ── 7-8. hasBreaches() ────────────────────────────────────────────────────────
 
 describe('hasBreaches()', () => {
   it('returns false when all SLOs are ok', () => {
@@ -240,7 +232,6 @@ describe('hasBreaches()', () => {
   });
 });
 
-// ── 9. breaches() ────────────────────────────────────────────────────────────
 
 describe('breaches()', () => {
   it('returns empty array when all SLOs ok', () => {
@@ -265,7 +256,6 @@ describe('breaches()', () => {
   });
 });
 
-// ── 10. Custom thresholds ─────────────────────────────────────────────────────
 
 describe('Custom thresholds', () => {
   it('tighter warn threshold triggers warning at lower latency', () => {

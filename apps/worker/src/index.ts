@@ -17,7 +17,6 @@
 import { Worker } from './services/Worker';
 import { Scheduler } from './services/Scheduler';
 import { SchedulerLock } from './services/SchedulerLock';
-import { FailureInjector } from './services/FailureInjector';
 import { JobGenerator } from './jobGenerator';
 import { createRedisClient } from '@aura/redis';
 
@@ -29,74 +28,58 @@ async function bootstrap() {
   const lowWorkers     = Math.max(Number(process.env.LOW_WORKERS      || 1), 0);
   const concurrency    = Math.max(Number(process.env.WORKER_CONCURRENCY || 20), 1);
 
-  // ── Failure injection (shared across all workers in this process) ────────
-  const injector = FailureInjector.fromEnv();
-
-  // ── Start job-worker pool ─────────────────────────────────────────────────
+   
   const workers: Worker[] = [];
-  for (let i = 0; i < defaultWorkers;  i++) workers.push(new Worker('default',       concurrency, injector));
-  for (let i = 0; i < highWorkers;     i++) workers.push(new Worker('high-priority', concurrency, injector));
-  for (let i = 0; i < lowWorkers;      i++) workers.push(new Worker('low-priority',  concurrency, injector));
+  for (let i = 0; i < defaultWorkers;  i++) workers.push(new Worker('default',       concurrency));
+  for (let i = 0; i < highWorkers;     i++) workers.push(new Worker('high-priority', concurrency));
+  for (let i = 0; i < lowWorkers;      i++) workers.push(new Worker('low-priority',  concurrency));
   for (const w of workers) await w.start();
 
-  // ── Scheduler leader election ─────────────────────────────────────────────
-  // All instances race for the lock.  The winner runs the Scheduler.
-  // startElection() is recursive: if the lock is lost it re-enters the race.
+   
+  // All instances race for the lock. The winner runs the Scheduler.
   const scheduler = new Scheduler();
   const lock      = new SchedulerLock(redis);
 
-  const startElection = async () => {
-    const won = await lock.tryAcquire().catch(() => false);
+  (async () => {
+    let won = await lock.tryAcquire().catch(() => false);
 
-    if (won) {
-      console.log(`[Bootstrap] Scheduler election won (id=${lock.instanceId.slice(0,8)}) — starting scheduler`);
-      await scheduler.start();
+    while (true) {
+      if (won) {
+        console.log(`[Bootstrap] Scheduler election won (id=${lock.instanceId.slice(0,8)}) — starting scheduler`);
+        await scheduler.start();
 
-      lock.startRenewing(() => {
-        // Lock lost — stop this scheduler, enter the retry loop so we can
-        // win the lock again if the new leader later dies.
-        console.warn('[Bootstrap] Scheduler lock lost — stopping scheduler and re-entering election');
-        scheduler.stop();
-        lock.startRetrying(async () => {
-          console.log('[Bootstrap] Re-acquired scheduler lock — restarting scheduler');
-          await scheduler.start();
+        // Block until the lock is lost
+        await new Promise<void>(resolve => {
           lock.startRenewing(() => {
-            console.warn('[Bootstrap] Scheduler lock lost again — stopping');
+            console.warn('[Bootstrap] Scheduler lock lost — stopping scheduler');
             scheduler.stop();
-            lock.startRetrying(startElection);
+            resolve();
           });
         });
-      });
-
-    } else {
-      // Lost this round — keep retrying in the background
-      console.log(`[Bootstrap] Scheduler election lost — standing by as replica (id=${lock.instanceId.slice(0,8)})`);
-      lock.startRetrying(async () => {
-        console.log('[Bootstrap] Acquired scheduler lock — starting scheduler');
-        await scheduler.start();
-        lock.startRenewing(() => {
-          console.warn('[Bootstrap] Scheduler lock lost — stopping scheduler and re-entering election');
-          scheduler.stop();
-          lock.startRetrying(startElection);
+        won = false;
+      } else {
+        console.log(`[Bootstrap] Scheduler election lost — standing by as replica (id=${lock.instanceId.slice(0,8)})`);
+        
+        // Block until the lock is acquired via polling
+        await new Promise<void>(resolve => {
+          lock.startRetrying(() => resolve());
         });
-      });
+        won = true;
+      }
     }
-  };
+  })();
 
-  await startElection();
-
-  // ── Optional job generator (load testing / dev) ───────────────────────────
+   
   const generator = process.env.JOB_GENERATOR_ENABLED === 'true'
     ? new JobGenerator()
     : null;
   if (generator) await generator.start();
 
-  // ── Graceful shutdown ─────────────────────────────────────────────────────
+   
   const shutdown = async (signal: string) => {
     console.log(`[Bootstrap] Received ${signal} — shutting down gracefully`);
     generator?.stop();
     scheduler.stop();
-    injector.stop();
     await lock.release();        // releases the lock immediately so a peer can take over
     for (const w of workers) await w.stop();
     await redis.quit().catch(() => {});
