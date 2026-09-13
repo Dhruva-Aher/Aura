@@ -1,0 +1,17 @@
+node_modules
+**/node_modules
+**/dist
+**/.vite
+.git
+.github
+.claude
+.DS_Store
+*.log
+**/.env
+**/.env.*
+**/*.tsbuildinfo
+apps/operator-console/dist
+scripts
+docs
+PROJECT_MAP.md
+assets

@@ -15,6 +15,11 @@ const redisSub = createRedisClient();
 app.use(cors());
 app.use(express.json());
 
+// Lightweight probe for container orchestrators (no DB/Redis dependency).
+app.get('/healthz', (_req, res) => {
+  res.status(200).json({ ok: true });
+});
+
 // Routes
 app.use('/jobs', jobsRouter);
 app.use('/metrics', metricsRouter);

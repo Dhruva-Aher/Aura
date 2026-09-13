@@ -69,6 +69,21 @@ To benchmark the system, run `npm run load-test` from `apps/worker`. The load te
 
 ## Deployment Instructions
 
+### Always-on production (VPS)
+
+For a public API that stays up 24/7 (API + worker + Postgres + Redis + HTTPS), see **[docs/DEPLOY_VPS.md](./docs/DEPLOY_VPS.md)**.
+
+Quick path:
+
+```bash
+cp deploy/env.example .env.prod   # set DOMAIN + POSTGRES_PASSWORD
+./deploy/bootstrap-vps.sh
+```
+
+Then set Vercel `VITE_API_URL=https://your-api-domain` and redeploy the Operator Console.
+
+### Local development
+
 ### Requirements
 - Node.js >= 18
 - PostgreSQL >= 14
@@ -79,25 +94,21 @@ To benchmark the system, run `npm run load-test` from `apps/worker`. The load te
    ```bash
    npm install
    ```
-2. Configure `.env`:
+2. Start infra:
+   ```bash
+   docker compose up -d
+   ```
+3. Configure `.env`:
    ```env
-   DATABASE_URL="postgresql://user:password@localhost:5432/aura"
+   DATABASE_URL="postgresql://postgres:password@localhost:5433/aura?schema=public"
    REDIS_URL="redis://localhost:6379"
    PORT=3001
    ```
-3. Initialize the database:
+4. Initialize the database:
    ```bash
    npm run db:push
    ```
-4. Start the API:
+5. Start the monorepo:
    ```bash
-   cd apps/api && npm run dev
-   ```
-5. Start the workers:
-   ```bash
-   cd apps/worker && npm run dev
-   ```
-6. Start the dashboard:
-   ```bash
-   cd apps/operator-console && npm run dev
+   npm run dev
    ```
