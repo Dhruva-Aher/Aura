@@ -99,13 +99,32 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const evtSource = new EventSource(`${API_BASE_URL}/events/stream`);
+    let pulseTimer: ReturnType<typeof setTimeout> | null = null;
+    let workersTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const schedulePulseRefresh = () => {
+      if (pulseTimer) return;
+      pulseTimer = setTimeout(() => {
+        pulseTimer = null;
+        queryClient.invalidateQueries({ queryKey: ['pulse'] });
+      }, 2500);
+    };
+
+    const scheduleWorkersRefresh = () => {
+      if (workersTimer) return;
+      workersTimer = setTimeout(() => {
+        workersTimer = null;
+        queryClient.invalidateQueries({ queryKey: ['workers'] });
+      }, 5000);
+    };
 
     evtSource.addEventListener('metrics_update', (e) => {
       try {
         const data = JSON.parse(e.data);
         queryClient.setQueryData(['metrics'], data as MetricsOverview);
-        queryClient.invalidateQueries({ queryKey: ['pulse'] });
-        queryClient.invalidateQueries({ queryKey: ['workers'] });
+        // Debounce extra HTTP fetches — free-tier can't keep up with invalidate storms.
+        schedulePulseRefresh();
+        scheduleWorkersRefresh();
       } catch {}
     });
 
@@ -117,16 +136,20 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (!old) return [job];
           return [job, ...old.filter(j => j.id !== job.id)].slice(0, 10);
         });
-        queryClient.invalidateQueries({ queryKey: ['metrics'] });
-        queryClient.invalidateQueries({ queryKey: ['pulse'] });
+        // Metrics already stream on an interval — don't refetch on every job.
+        schedulePulseRefresh();
       } catch {}
     });
 
     evtSource.onerror = () => {
-      // SSE disconnect is non-fatal — polling handles real-time updates
+      // SSE disconnect is non-fatal — React Query keeps last known data.
     };
 
-    return () => evtSource.close();
+    return () => {
+      if (pulseTimer) clearTimeout(pulseTimer);
+      if (workersTimer) clearTimeout(workersTimer);
+      evtSource.close();
+    };
   }, [queryClient]);
 
   const value: AuraState = {

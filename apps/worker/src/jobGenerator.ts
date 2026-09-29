@@ -1,6 +1,8 @@
 import { randomUUID } from 'crypto';
 
-const API_URL = process.env.API_URL || 'http://localhost:3001';
+const API_URL =
+  process.env.API_URL ||
+  `http://127.0.0.1:${process.env.PORT || 3001}`;
 const INTERVAL_MS = Math.max(Number(process.env.GENERATOR_INTERVAL_MS || 300), 100);
 
 // Realistic job types that would exist in a real background-processing system.

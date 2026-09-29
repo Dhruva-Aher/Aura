@@ -33,7 +33,11 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   res.status(500).json({ error: 'Internal Server Error' });
 });
 
-// Broadcast metrics every 2 seconds via SSE
+// Broadcast metrics via SSE (slower on free tier to reduce CPU + UI churn).
+const METRICS_BROADCAST_MS = Number(
+  process.env.METRICS_BROADCAST_MS ??
+    (process.env.FREE_TIER === 'true' ? 5000 : 2000),
+);
 setInterval(async () => {
   try {
     const metrics = await buildMetricsOverview();
@@ -41,7 +45,7 @@ setInterval(async () => {
   } catch (err) {
     console.error('Metrics broadcast error:', err);
   }
-}, 2000);
+}, METRICS_BROADCAST_MS);
 
 // Distributed event bridge: worker processes publish to Redis PubSub.
 redisSub.subscribe('aura:events').then(() => {
@@ -64,6 +68,10 @@ redisSub.subscribe('aura:events').then(() => {
 let latestJobUpdateAt = new Date(0);
 
 // Broadcast job lifecycle updates so UI reflects real status transitions.
+const JOB_BROADCAST_MS = Number(
+  process.env.JOB_BROADCAST_MS ??
+    (process.env.FREE_TIER === 'true' ? 2000 : 1000),
+);
 setInterval(async () => {
   try {
     const jobs = await prisma.job.findMany({
@@ -83,7 +91,7 @@ setInterval(async () => {
   } catch (err) {
     console.error('Job update broadcast error:', err);
   }
-}, 1000);
+}, JOB_BROADCAST_MS);
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
