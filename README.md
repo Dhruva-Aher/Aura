@@ -4,6 +4,21 @@ Aura is a distributed job queue built on Redis sorted sets and PostgreSQL. It ha
 
 This document describes the engineering implementation of the system.
 
+## Numbers (read this first)
+
+Aura has **two environments**. Mixing them up causes confusing demos and unsafe resume claims.
+
+| | **Local load test (resume)** | **Public free demo (live)** |
+|--|------------------------------|-----------------------------|
+| **URL** | Your machine (`docker compose` + `npm run dev`) | [aurasys.vercel.app](https://aurasys.vercel.app) → API [aura-api-184s.onrender.com](https://aura-api-184s.onrender.com) |
+| **Scale** | **20k+** in-flight jobs; **~300 jobs/min**; P95 E2E **~6.5s** | Light synthetic traffic (~1 job / 10–15s when generator on) |
+| **Tests / recovery** | **~220–250** Vitest cases; reconcile **6k+** jobs after Redis loss | Not the scale environment |
+| **Doc** | [docs/BENCHMARKS.md](./docs/BENCHMARKS.md) | Same file, section B |
+
+**Interview tip:** Claim scale from local benchmarks + architecture. Use the live site to show the console, SSE, and job lifecycle — not 20k concurrency.
+
+More: [docs/INTERVIEW_GUIDE.md](./docs/INTERVIEW_GUIDE.md) · [docs/DECISIONS.md](./docs/DECISIONS.md) · [docs/PROJECT_TRACE.md](./docs/PROJECT_TRACE.md)
+
 ## Project Motivation
 Aura provides a hybrid persistence model: PostgreSQL serves as the durable source of truth (guaranteeing no jobs are lost), while Redis serves as the high-throughput execution plane (providing fast polling, sorting, and backpressure).
 
