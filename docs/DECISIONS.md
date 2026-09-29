@@ -605,9 +605,17 @@ Documented in [crash-recovery.md](./crash-recovery.md): worker crash → reap; s
 
 | | |
 |--|--|
-| **Decision** | `assets/system-overview.png` in README is labeled **local high-volume proof, not free demo**, with an on-page table mapping visible pixels (18,223 / 303.72 / 7.40s / DLQ 3,479 / pending 0) to claim IDs. Live demo URL is a separate claim (4a vs 4b). |
-| **Why** | Bare “under load” alt text let recruiters assume the live site shows those numbers. |
+| **Decision** | `assets/system-overview.png` in README is labeled **local high-volume proof**, with an on-page table mapping visible pixels (18,223 / 303.72 / 7.40s / DLQ 3,479 / pending 0) to claim IDs. Live demo URL is a separate claim (4a vs 4b). |
+| **Why** | Bare “under load” alt text blurred which environment the image proves. |
 | **Evidence** | README “Proof screenshot” section; [2026-console-dashboard.md](./benchmark-runs/2026-console-dashboard.md). |
+
+### D-P14-11 — README stays affirmative (`DECIDED`)
+
+| | |
+|--|--|
+| **Decision** | Root README uses positive framing only (what Aura is, what each environment offers, what the screenshot shows). Contrast/anti-claims (“not BullMQ”, “do not say”, “not the free demo”) live in POSITIONING / BENCHMARKS / INTERVIEW_GUIDE for interview prep. |
+| **Why** | Recruiter glance should feel confident and clear; caveats belong in depth docs. |
+| **Evidence** | Root `README.md`. |
 
 ---
 

@@ -1,53 +1,55 @@
 # Aura
 
-**A job queue built from scratch — not a BullMQ wrapper.**
+**A job queue built from scratch — leases, fences, and Postgres-backed recovery, with a live operator console.**
 
-Workers claim jobs with **leases** and **idempotency fences**. Postgres is the source of truth; Redis is the fast path. If Redis is wiped, jobs are **restored from Postgres**. Includes a live **operator console**.
+Workers claim jobs with **leases** and **idempotency fences**. Postgres is the durable source of truth; Redis is the high-speed execution path. After a Redis wipe, the scheduler **restores jobs from Postgres**.
 
 | | |
 |--|--|
-| **Live demo** | [aurasys.vercel.app](https://aurasys.vercel.app) *(free tier — may take ~30–60s to wake)* |
+| **Live demo** | [aurasys.vercel.app](https://aurasys.vercel.app) *(free tier — first open may take 30–60s while the API starts)* |
 | **Stack** | TypeScript · Node · Redis · PostgreSQL · React |
-| **Not this** | Not a chat app, not Kafka/Temporal, not “Redis as a cache on a CRUD API” |
+| **Category** | Distributed job queue with crash recovery and real-time observability |
 
 ---
 
 ## What it does (10 seconds)
 
-1. **Accepts jobs** over HTTP (rejects overload with backpressure).
+1. **Accepts jobs** over HTTP with adaptive backpressure.
 2. **Runs them** on workers with priority queues, retries, and a dead-letter queue.
-3. **Survives crashes** — worker death, scheduler failover, Redis data loss.
-4. **Shows health** — throughput, P95 latency, queue depth — in a real-time dashboard.
+3. **Recovers** from worker crashes, scheduler failover, and Redis data loss.
+4. **Surfaces health** — throughput, P95 latency, queue depth — on a real-time dashboard.
 
-### Proof screenshot (local load — not the free demo)
+### Proof screenshot (local / Docker high-volume run)
 
 ![Aura Console — local high-volume snapshot](./assets/system-overview.png)
 
-**What this picture is:** Operator Console during a **local / Docker** run. It is **not** a capture of [aurasys.vercel.app](https://aurasys.vercel.app) (that demo is light traffic on free Render).
+**This image:** Operator Console on a **local / Docker** high-volume run (scale evidence).  
+**Live demo:** [aurasys.vercel.app](https://aurasys.vercel.app) for interactive UI (light free-tier traffic).
 
-**What you can read off this image (matched to claims):**
+**Visible on this image (matched to claims):**
 
 | On the picture | Value | Claim # |
 |----------------|-------|---------|
 | Completed (Last 1 hour) | **18,223** | #6 |
 | Throughput | **303.72** Jobs/min | #5 |
 | Job Latency P95 | **7.40s** | #7 |
-| Pending / Processing at capture | **0** / **5** | (drained — not “20k in-flight”) |
-| Dead Letters (same hour) | **3,479** | DLQ path under load (failure injection) |
+| Pending / Processing at capture | **0** / **5** | #8c |
+| Dead Letters (same hour) | **3,479** | #8b |
 
 Related crops: [`assets/performance.png`](./assets/performance.png) (pulse) · [`assets/job-activity.png`](./assets/job-activity.png) (P95 **7.60s** → claim #8) · write-up [docs/benchmark-runs/2026-console-dashboard.md](./docs/benchmark-runs/2026-console-dashboard.md)
 
 ---
+
 ## Why this stands out
 
-Most portfolio “queues” configure **BullMQ/Celery**. Aura implements the hard parts in-repo:
+Aura implements queue primitives **in this repository**:
 
 | Attention hook | Plain meaning |
 |----------------|---------------|
-| **Owned primitives** | Claim → lease → execute → fence → complete — your code, not `node_modules` |
-| **Redis wipe ≠ lost jobs** | Scheduler rebuilds queues from Postgres (**6,000** jobs in **1,843 ms** — case-study log) |
-| **Honest metrics** | Screenshot: **303.72 jobs/min**, P95 **7.40s** / **7.60s**, **18,223** completions/hour |
-| **Decision log** | Every major tradeoff written down for interviews |
+| **Owned primitives** | Claim → lease → execute → fence → complete in first-party code |
+| **Durable after Redis wipe** | Scheduler rebuilds queues from Postgres (**6,000** jobs in **1,843 ms** — case-study log) |
+| **Measured metrics** | Screenshot: **303.72 jobs/min**, P95 **7.40s** / **7.60s**, **18,223** completions/hour |
+| **Decision log** | Major tradeoffs written down for interviews |
 
 Deeper comparison: [docs/POSITIONING.md](./docs/POSITIONING.md)
 
@@ -55,13 +57,13 @@ Deeper comparison: [docs/POSITIONING.md](./docs/POSITIONING.md)
 
 ## Numbers at a glance
 
-**Two environments — do not mix them.**
+Two environments, each with its own purpose and numbers:
 
-| | Local / Docker (proof) | Public demo (click around) |
-|--|------------------------|----------------------------|
-| **Purpose** | Scale + recovery evidence | Recruiter-friendly UI |
-| **Throughput** | **303.72 jobs/min** → **18,223**/hour | ~1 job / 10–15s (on purpose) |
-| **P95 queue wait** | **7.40s** (overview) · **7.60s** (latency widget) | Light load — not a scale claim |
+| | Local / Docker (proof) | Public demo (interactive UI) |
+|--|------------------------|------------------------------|
+| **Purpose** | Scale + recovery evidence | Recruiter-friendly walkthrough |
+| **Throughput** | **303.72 jobs/min** → **18,223**/hour | ~1 job / 10–15s (steady demo traffic) |
+| **P95 queue wait** | **7.40s** (overview) · **7.60s** (latency widget) | Light load |
 | **Tests** | **224** Vitest cases (`npm test -w apps/worker`) | — |
 | **Recovery** | **6,000** jobs restored in **1,843 ms** (case-study log) | — |
 
@@ -69,37 +71,38 @@ Deeper comparison: [docs/POSITIONING.md](./docs/POSITIONING.md)
 
 ## Claims ↔ evidence (matched 1:1)
 
-Every public claim below has exactly one evidence pointer. If it is not in this table, do not put it on a resume.
+Every public claim has an evidence pointer in this table.
 
 | # | Claim | Exact evidence (quote / path) | Grade |
 |---|-------|-------------------------------|-------|
-| 1 | Job queue **from scratch**, **not a BullMQ wrapper** | In-repo claim/lease/fence/reconcile — `apps/worker/src/services/Worker.ts`, `Scheduler.ts`, `packages/redis/src/lua.ts` (no BullMQ dependency) | A |
+| 1 | Job queue **built from scratch** in-repo | Claim/lease/fence/reconcile — `Worker.ts`, `Scheduler.ts`, `packages/redis/src/lua.ts` | A |
 | 2 | **Leases** + **idempotency fences** | `LEASE_MS` + `aura:leased`; fence `aura:executing:<id>` — [lease-protocol.md](./docs/lease-protocol.md), `Idempotency.test.ts` | A |
-| 3 | Postgres = truth; Redis = fast path; **wipe → restore** | `Scheduler.reconcilePendingJobs` — [crash-recovery.md](./docs/crash-recovery.md) | A |
-| 4a | **Live** operator console (click demo) | [aurasys.vercel.app](https://aurasys.vercel.app) — free-tier, light traffic | A (ops) |
-| 4b | Console UI under **local high-volume** load | [`assets/system-overview.png`](./assets/system-overview.png) — captioned in README; **not** a free-demo capture | A |
-| 5 | Throughput **303.72 jobs/min** | Throughput card **on that PNG** | A |
-| 6 | Completions **18,223** / hour | Completed card **on that PNG**; **303.72 × 60 ≈ 18,223** | A |
-| 7 | P95 queue wait **7.40s** | Job Latency card **on that PNG** | A |
-| 8 | P95 queue wait **7.60s** | [`assets/job-activity.png`](./assets/job-activity.png) (P95 widget crop) | A |
-| 8b | Dead letters **3,479** in same hour (DLQ worked) | Dead Letters card **on system-overview.png** — expect this if asked; failure injection was on | A |
-| 8c | Screenshot is **not** 20k in-flight | Same PNG: Pending **0**, Processing **5** | A |
-| 9 | Recovered **6,000** jobs in **1,843 ms** | Phase 9 case-study log: `{ restored:6000, durationMs:1843 }` — [BENCHMARKS.md](./docs/BENCHMARKS.md) | C |
-| 10 | Reconcile loop handles **6,000** orphans **&lt; 2s** (in-memory) | `PersistenceRecovery.test.ts` — “restores 6000 … under 2s” | A |
+| 3 | Postgres durability + Redis speed; **wipe → restore** | `Scheduler.reconcilePendingJobs` — [crash-recovery.md](./docs/crash-recovery.md) | A |
+| 4a | **Live** operator console | [aurasys.vercel.app](https://aurasys.vercel.app) | A (ops) |
+| 4b | Console under **local high-volume** load | [`assets/system-overview.png`](./assets/system-overview.png) (captioned above) | A |
+| 5 | Throughput **303.72 jobs/min** | Throughput card on that PNG | A |
+| 6 | Completions **18,223** / hour | Completed card on that PNG; **303.72 × 60 ≈ 18,223** | A |
+| 7 | P95 queue wait **7.40s** | Job Latency card on that PNG | A |
+| 8 | P95 queue wait **7.60s** | [`assets/job-activity.png`](./assets/job-activity.png) | A |
+| 8b | Dead letters **3,479** in same hour (DLQ under load) | Dead Letters card on `system-overview.png` | A |
+| 8c | In-flight at capture: Pending **0**, Processing **5** | Same PNG status cards | A |
+| 9 | Recovered **6,000** jobs in **1,843 ms** | Case-study log `{ restored:6000, durationMs:1843 }` — [BENCHMARKS.md](./docs/BENCHMARKS.md) | C |
+| 10 | Reconcile loop restores **6,000** orphans in under **2s** (in-memory) | `PersistenceRecovery.test.ts` | A |
 | 11 | **224** unit tests | `npm test -w apps/worker` → **224 passed** | A |
-| 12 | HTTP **backpressure** (429 when overloaded) | Lua admission + `AdaptiveThreshold` — `packages/redis/src/lua.ts`, backpressure tests | A |
-| 13 | Free demo is **light** (~1 job / 10–15s; may sleep) | [DEPLOY_FREE.md](./docs/DEPLOY_FREE.md); Render Free behavior | A (ops) |
-| 14 | Load harness can burst **20,000** enqueues | `apps/worker/src/load-test.ts` `--jobs 20000` — **capability**, not the screenshot’s in-flight depth | B |
+| 12 | Adaptive **backpressure** on enqueue | Lua admission + `AdaptiveThreshold` — `packages/redis/src/lua.ts`, backpressure tests | A |
+| 13 | Public demo keeps light, steady traffic | [DEPLOY_FREE.md](./docs/DEPLOY_FREE.md) | A (ops) |
+| 14 | Load harness supports **20,000**-job bursts | `apps/worker/src/load-test.ts` `--jobs 20000` | B |
 
-Full definitions + “do not say”: [docs/BENCHMARKS.md](./docs/BENCHMARKS.md) · [docs/benchmark-runs/2026-console-dashboard.md](./docs/benchmark-runs/2026-console-dashboard.md)
+Definitions and interview phrasing: [docs/BENCHMARKS.md](./docs/BENCHMARKS.md) · [docs/benchmark-runs/2026-console-dashboard.md](./docs/benchmark-runs/2026-console-dashboard.md)
 
-**Rounding rule:** Prefer exact screenshot/log values in this table. Soft wording like “~304/min” or “~7.5s” is only OK in speech if you can still point at **303.72** / **7.40–7.60**.
+**Citation style:** Prefer exact values (**303.72**, **7.40s** / **7.60s**, **18,223**, **1,843 ms**) when quoting evidence.
 
 ---
+
 ## Try it
 
 ```bash
-# Live UI (wake the free API if sleeping)
+# Live UI
 open https://aurasys.vercel.app
 
 # Local (full system)
@@ -114,10 +117,10 @@ Deploy guides: [Free $0](./docs/DEPLOY_FREE.md) · [Render paid](./docs/DEPLOY_R
 
 | Doc | For |
 |-----|-----|
-| [POSITIONING.md](./docs/POSITIONING.md) | What / why different / metrics glossary / XYZ scaffolds |
-| [BENCHMARKS.md](./docs/BENCHMARKS.md) | Defensible numbers + evidence grades |
-| [DECISIONS.md](./docs/DECISIONS.md) | Full engineering decision catalog |
-| [INTERVIEW_GUIDE.md](./docs/INTERVIEW_GUIDE.md) | How to talk about the project |
+| [POSITIONING.md](./docs/POSITIONING.md) | Differentiation, metrics glossary, XYZ scaffolds |
+| [BENCHMARKS.md](./docs/BENCHMARKS.md) | Numbers + evidence grades |
+| [DECISIONS.md](./docs/DECISIONS.md) | Engineering decision catalog |
+| [INTERVIEW_GUIDE.md](./docs/INTERVIEW_GUIDE.md) | How to present the project |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | Component diagram |
 
 ---
@@ -137,22 +140,21 @@ Details: [ARCHITECTURE.md](./ARCHITECTURE.md)
 
 ### Lifecycle
 
-`PENDING` → claim/lease → `PROCESSING` → `COMPLETED` / retry via delayed queue → `DEAD_LETTER` if max attempts exceeded. Crashed workers: lease TTL expires → reaper re-queues. Redis wipe: reconciler restores from Postgres.
+`PENDING` → claim/lease → `PROCESSING` → `COMPLETED` / retry via delayed queue → `DEAD_LETTER` when max attempts are reached. After a worker crash, lease TTL expiry lets the reaper re-queue. After a Redis wipe, the reconciler restores from Postgres.
 
 ### Protocol highlights
 
-- **Lease** (`aura:leased`, ~30s) + **fence** (`aura:executing:<id>`) so a slow worker cannot double-complete after a reap.
+- **Lease** (`aura:leased`, ~30s) + **fence** (`aura:executing:<id>`) for safe completion after reap races.
 - **Backoff** → delayed ZSET; then DLQ in Postgres.
-- **Admission** — Lua gate + adaptive threshold from drain rate (HTTP 429 when overloaded).
+- **Admission** — Lua gate + adaptive threshold from drain rate.
 
 Design notes: [docs/lease-protocol.md](./docs/lease-protocol.md) · [docs/crash-recovery.md](./docs/crash-recovery.md) · [docs/DECISIONS.md](./docs/DECISIONS.md)
 
-### Benchmarks & limits
+### Benchmarks
 
-- Re-run load: `npm run load-test -w apps/worker -- burst --jobs 20000 --concurrency 20` (local stack). Archive under `docs/benchmark-runs/`.
-- Payload `JSONB` is not schema-validated at read time; handlers must validate.
-- API hard-depends on Redis for enqueue.
-- Free demo sleeps after idle; cold start can be 30–60s.
+Re-run load: `npm run load-test -w apps/worker -- burst --jobs 20000 --concurrency 20` (local stack). Archive under `docs/benchmark-runs/`.
+
+Handlers validate their own `JSONB` payloads. Enqueue uses Redis on the hot path. Free-tier cold start is typically 30–60s on first visit.
 
 ### Local setup
 
