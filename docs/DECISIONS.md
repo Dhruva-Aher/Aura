@@ -9,6 +9,7 @@
 
 **Related**
 - [BENCHMARKS.md](./BENCHMARKS.md) — resume numbers vs live demo  
+- [POSITIONING.md](./POSITIONING.md) — product definition, differentiation, metric glossary, XYZ scaffolds  
 - [INTERVIEW_GUIDE.md](./INTERVIEW_GUIDE.md) — how to talk about claims  
 - [PROJECT_TRACE.md](./PROJECT_TRACE.md) — structural backtrace  
 - [ARCHITECTURE.md](../ARCHITECTURE.md) — component diagram  
@@ -556,6 +557,14 @@ Documented in [crash-recovery.md](./crash-recovery.md): worker crash → reap; s
 | **Decision** | Every resume/demo number must have grade **A** (artifact), **B** (reproducible harness), **C** (historical log), or **D** (design target only). Undocumented numbers are forbidden in pitch docs. |
 | **Why** | Interviewers ask “how do you know?”; rounded claims (6.5s, 250 tests) were weaker than screenshots/vitest. |
 | **Evidence** | [BENCHMARKS.md](./BENCHMARKS.md), [benchmark-runs/](./benchmark-runs/). |
+
+### D-P14-05 — Positioning + XYZ scaffolds, not canned resume bullets (`DECIDED`)
+
+| | |
+|--|--|
+| **Decision** | Keep [POSITIONING.md](./POSITIONING.md) as product definition, differentiation vs BullMQ/DB-only, metric glossary, and Google XYZ **worksheets** — never paste-ready resume lines. |
+| **Why** | User owns final resume wording; repo should make X/Y/Z and evidence obvious without fabricating achievement copy. |
+| **Evidence** | [POSITIONING.md](./POSITIONING.md). |
 
 ---
 

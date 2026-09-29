@@ -1,7 +1,8 @@
 # Aura — Interview Guide (SWE)
 
 Use this to explain the project clearly without over-claiming.  
-**Numbers bible:** [BENCHMARKS.md](./BENCHMARKS.md) (every claim has an evidence grade).
+**Numbers bible:** [BENCHMARKS.md](./BENCHMARKS.md) (evidence grades).  
+**Positioning / XYZ worksheets:** [POSITIONING.md](./POSITIONING.md) — what Aura is, what’s different, metric glossary, Google XYZ scaffolds (not resume bullets).
 
 ---
 

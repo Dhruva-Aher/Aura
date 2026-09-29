@@ -2,7 +2,7 @@
 
 **Rule:** Every public number has an evidence grade and a pointer. If you cannot point, do not claim.
 
-Related: [benchmark-runs/](./benchmark-runs/) · [INTERVIEW_GUIDE.md](./INTERVIEW_GUIDE.md) · [DECISIONS.md](./DECISIONS.md)
+Related: [benchmark-runs/](./benchmark-runs/) · [INTERVIEW_GUIDE.md](./INTERVIEW_GUIDE.md) · [DECISIONS.md](./DECISIONS.md) · [POSITIONING.md](./POSITIONING.md) (metric definitions + XYZ scaffolds)
 
 ---
 
@@ -36,6 +36,8 @@ Never imply the free URL is processing tens of thousands of jobs.
 ---
 
 ## Definitions (so “concurrent” cannot trap you)
+
+Full glossary (unit, window, formula, “not this”): [POSITIONING.md §3](./POSITIONING.md#3-metrics-glossary-crystal-clear).
 
 | Phrase | Meaning in Aura |
 |--------|-----------------|
