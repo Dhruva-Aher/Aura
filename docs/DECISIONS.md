@@ -582,6 +582,14 @@ Documented in [crash-recovery.md](./crash-recovery.md): worker crash → reap; s
 | **Why** | User standing order: decisions must stay crystal clear for interviews; chat context evaporates. |
 | **Evidence** | This entry; `.cursor/rules/document-decisions.mdc`. |
 
+### D-P14-08 — Recruiter-first README (`DECIDED`)
+
+| | |
+|--|--|
+| **Decision** | README opens with hook (“not a BullMQ wrapper”), plain “what it does,” demo URL, differentiators, two-environment numbers, then “For engineers” depth — scannable in a few seconds. |
+| **Why** | Recruiters bounce on jargon walls; systems depth still available below the fold. |
+| **Evidence** | Root `README.md`. |
+
 ---
 
 ## Chronological timeline (from git)
