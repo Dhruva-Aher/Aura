@@ -1,27 +1,29 @@
 # Aura
 
-**Distributed job queue** · TypeScript · Redis · PostgreSQL  
+**Distributed job queue** · Backend / systems · TypeScript · Redis · PostgreSQL
 
-Built from scratch: lease-based workers, idempotency fences, crash recovery, adaptive backpressure, and a live operator console.
+Lease-based workers, idempotency fences, Postgres-backed crash recovery, adaptive backpressure, priority queues, and a live operator console — implemented in-repo as a monorepo (`api` · `worker` · `console`).
+
+[![CI](https://github.com/Dhruva-Aher/Aura/actions/workflows/ci.yml/badge.svg)](https://github.com/Dhruva-Aher/Aura/actions/workflows/ci.yml)
 
 | | |
 |--|--|
 | **Demo** | [aurasys.vercel.app](https://aurasys.vercel.app) |
-| **Focus** | Backend / distributed systems · reliability · observability |
-| **Stack** | Node.js · Redis · PostgreSQL · React · Vitest |
+| **Focus** | Reliability · concurrency · observability |
+| **Stack** | Node.js · Redis · PostgreSQL · React · Vitest · Docker |
 
 ---
 
 ## Highlights
 
-- **Reliability** — Workers use leases + fences; a leader-elected scheduler reaps crashes and restores queues from Postgres after Redis loss (**6,000** jobs in **1,843 ms** in a documented recovery run).
+- **Reliability** — Leases + fences; leader-elected scheduler reaps crashes and restores Redis from Postgres (**6,000** jobs in **1,843 ms** in a documented recovery run).
 - **Scale (local proof)** — Console snapshot: **303.72 jobs/min**, **18,223** completions/hour, P95 queue wait **7.40s**.
-- **Correctness** — **224** automated tests covering leases, fences, retries/DLQ, backpressure, and recovery.
-- **Operability** — Real-time dashboard (SSE) for throughput, latency, and queue depth.
+- **Correctness** — **224** automated tests (leases, fences, retries/DLQ, backpressure, priority, recovery, SLOs).
+- **Operability** — SSE operator console for throughput, latency, queue depth, and DLQ actions.
 
 ![Aura Console — local high-volume run](./assets/system-overview.png)
 
-*Local high-volume run (proof). Live demo is the URL above for interactive walkthrough.*
+*Local high-volume run (proof). Demo URL above is for interactive walkthrough.*
 
 | Metric on screenshot | Value |
 |----------------------|-------|
@@ -30,7 +32,7 @@ Built from scratch: lease-based workers, idempotency fences, crash recovery, ada
 | P95 queue wait | **7.40s** |
 | Dead letters (same window) | **3,479** |
 
-P95 crop **7.60s**: [`assets/job-activity.png`](./assets/job-activity.png) · Evidence notes: [docs/BENCHMARKS.md](./docs/BENCHMARKS.md)
+P95 crop **7.60s**: [`assets/job-activity.png`](./assets/job-activity.png) · Evidence: [docs/BENCHMARKS.md](./docs/BENCHMARKS.md)
 
 ---
 
@@ -38,15 +40,15 @@ P95 crop **7.60s**: [`assets/job-activity.png`](./assets/job-activity.png) · Ev
 
 | Component | Responsibility |
 |-----------|----------------|
-| **API** | HTTP enqueue, validation, adaptive backpressure → Postgres + Redis |
+| **API** | HTTP enqueue, Zod validation, adaptive backpressure → Postgres + Redis |
 | **Workers** | Priority claim (`ZPOPMAX`), lease, fence, execute, complete / retry |
-| **Scheduler** | Leader election — reap, promote delayed jobs, reconcile, SLOs |
-| **Console** | React + SSE metrics and job activity |
+| **Scheduler** | Leader election — reap, promote delayed jobs, reconcile, evaluate SLOs |
+| **Console** | React + SSE metrics, recent jobs, DLQ replay |
 
 ```text
-Client → API → Postgres (truth) + Redis (queues/leases)
-                ↑______ Workers claim & complete ______↑
-                ↑______ Scheduler: reap / reconcile ___↑
+Client → API → Postgres (truth) + Redis (queues / leases / delayed)
+                ↑______ Workers claim & complete ________↑
+                ↑______ Scheduler: reap / reconcile _____↑
 ```
 
 More: [ARCHITECTURE.md](./ARCHITECTURE.md) · [docs/DECISIONS.md](./docs/DECISIONS.md) · [docs/POSITIONING.md](./docs/POSITIONING.md)
@@ -56,10 +58,7 @@ More: [ARCHITECTURE.md](./ARCHITECTURE.md) · [docs/DECISIONS.md](./docs/DECISIO
 ## Quick start
 
 ```bash
-# Demo
 open https://aurasys.vercel.app
-
-# Local
 docker compose up -d && npm install && npm run db:push && npm run dev
 ```
 
@@ -72,6 +71,7 @@ Deploy: [Free](./docs/DEPLOY_FREE.md) · [Render](./docs/DEPLOY_RENDER.md) · [V
 
 | Doc | Use |
 |-----|-----|
-| [BENCHMARKS.md](./docs/BENCHMARKS.md) | Claim ↔ evidence (exact numbers) |
+| [BENCHMARKS.md](./docs/BENCHMARKS.md) | Claim ↔ evidence |
+| [FAANG_RECRUITER_CHECK.md](./docs/FAANG_RECRUITER_CHECK.md) | Research-backed sourcer audit |
 | [INTERVIEW_GUIDE.md](./docs/INTERVIEW_GUIDE.md) | How to present Aura |
 | [lease-protocol.md](./docs/lease-protocol.md) / [crash-recovery.md](./docs/crash-recovery.md) | Protocol deep-dives |

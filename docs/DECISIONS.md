@@ -621,9 +621,17 @@ Documented in [crash-recovery.md](./crash-recovery.md): worker crash → reap; s
 
 | | |
 |--|--|
-| **Decision** | README optimized for ~5–10s sourcer scan: role line (Backend / distributed systems), demo URL, 4 highlight bullets with exact metrics, one screenshot + compact metric table, short architecture, quick start. Full claim↔evidence matrix moved to [BENCHMARKS.md](./BENCHMARKS.md). |
-| **Why** | FAANG recruiters skim for role fit, stack, concrete outcomes, and a link they can open — audit tables and “claim grades” read as internal homework, not product signal. |
-| **Evidence** | Root `README.md` (post-`42e11ec` rewrite). |
+| **Decision** | README optimized for ~5–12s sourcer scan: role line, demo URL, highlight bullets with exact metrics, one screenshot, short architecture. Full claim↔evidence matrix in [BENCHMARKS.md](./BENCHMARKS.md). |
+| **Why** | FAANG recruiters skim for role fit, stack, outcomes, and a link — audit tables belong in depth docs. |
+| **Evidence** | Root `README.md`. |
+
+### D-P14-13 — Research-backed FAANG check + CI (`DECIDED`)
+
+| | |
+|--|--|
+| **Decision** | Re-index knowledge graph, verify live demo/healthz, re-run 224 tests, document audit in [FAANG_RECRUITER_CHECK.md](./FAANG_RECRUITER_CHECK.md); add GitHub Actions CI for worker Vitest (recruiter-visible green checks). |
+| **Why** | Prior glance was incomplete (CI gap; docs/tests excluded from earlier mental model). External guidance emphasizes CI + short README + live demo + reliability signals. |
+| **Evidence** | `.github/workflows/ci.yml`, [FAANG_RECRUITER_CHECK.md](./FAANG_RECRUITER_CHECK.md), graph project `Users-dhruv-.gemini-antigravity-scratch-aura`. |
 
 ---
 

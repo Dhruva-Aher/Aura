@@ -4,7 +4,7 @@
 
 **This file is not a resume.** It is raw material. Do not paste sections below into LinkedIn/GitHub “Achievements” without rewriting.
 
-Related: [BENCHMARKS.md](./BENCHMARKS.md) (evidence grades) · [DECISIONS.md](./DECISIONS.md) · [INTERVIEW_GUIDE.md](./INTERVIEW_GUIDE.md)
+Related: [BENCHMARKS.md](./BENCHMARKS.md) (evidence grades) · [DECISIONS.md](./DECISIONS.md) · [INTERVIEW_GUIDE.md](./INTERVIEW_GUIDE.md) · [FAANG_RECRUITER_CHECK.md](./FAANG_RECRUITER_CHECK.md)
 
 ---
 
