@@ -19,10 +19,25 @@ Workers claim jobs with **leases** and **idempotency fences**. Postgres is the s
 3. **Survives crashes** — worker death, scheduler failover, Redis data loss.
 4. **Shows health** — throughput, P95 latency, queue depth — in a real-time dashboard.
 
-![Operator console under load](./assets/system-overview.png)
+### Proof screenshot (local load — not the free demo)
+
+![Aura Console — local high-volume snapshot](./assets/system-overview.png)
+
+**What this picture is:** Operator Console during a **local / Docker** run. It is **not** a capture of [aurasys.vercel.app](https://aurasys.vercel.app) (that demo is light traffic on free Render).
+
+**What you can read off this image (matched to claims):**
+
+| On the picture | Value | Claim # |
+|----------------|-------|---------|
+| Completed (Last 1 hour) | **18,223** | #6 |
+| Throughput | **303.72** Jobs/min | #5 |
+| Job Latency P95 | **7.40s** | #7 |
+| Pending / Processing at capture | **0** / **5** | (drained — not “20k in-flight”) |
+| Dead Letters (same hour) | **3,479** | DLQ path under load (failure injection) |
+
+Related crops: [`assets/performance.png`](./assets/performance.png) (pulse) · [`assets/job-activity.png`](./assets/job-activity.png) (P95 **7.60s** → claim #8) · write-up [docs/benchmark-runs/2026-console-dashboard.md](./docs/benchmark-runs/2026-console-dashboard.md)
 
 ---
-
 ## Why this stands out
 
 Most portfolio “queues” configure **BullMQ/Celery**. Aura implements the hard parts in-repo:
@@ -61,11 +76,14 @@ Every public claim below has exactly one evidence pointer. If it is not in this 
 | 1 | Job queue **from scratch**, **not a BullMQ wrapper** | In-repo claim/lease/fence/reconcile — `apps/worker/src/services/Worker.ts`, `Scheduler.ts`, `packages/redis/src/lua.ts` (no BullMQ dependency) | A |
 | 2 | **Leases** + **idempotency fences** | `LEASE_MS` + `aura:leased`; fence `aura:executing:<id>` — [lease-protocol.md](./docs/lease-protocol.md), `Idempotency.test.ts` | A |
 | 3 | Postgres = truth; Redis = fast path; **wipe → restore** | `Scheduler.reconcilePendingJobs` — [crash-recovery.md](./docs/crash-recovery.md) | A |
-| 4 | Live **operator console** | [aurasys.vercel.app](https://aurasys.vercel.app) · screenshot [`assets/system-overview.png`](./assets/system-overview.png) | A |
-| 5 | Throughput **303.72 jobs/min** | Same pixel on `system-overview.png` (Throughput card) | A |
-| 6 | Completions **18,223** / hour | Completed card on same screenshot; **303.72 × 60 ≈ 18,223** | A |
-| 7 | P95 queue wait **7.40s** | Job Latency card on `system-overview.png` | A |
-| 8 | P95 queue wait **7.60s** | [`assets/job-activity.png`](./assets/job-activity.png) (P95 widget) | A |
+| 4a | **Live** operator console (click demo) | [aurasys.vercel.app](https://aurasys.vercel.app) — free-tier, light traffic | A (ops) |
+| 4b | Console UI under **local high-volume** load | [`assets/system-overview.png`](./assets/system-overview.png) — captioned in README; **not** a free-demo capture | A |
+| 5 | Throughput **303.72 jobs/min** | Throughput card **on that PNG** | A |
+| 6 | Completions **18,223** / hour | Completed card **on that PNG**; **303.72 × 60 ≈ 18,223** | A |
+| 7 | P95 queue wait **7.40s** | Job Latency card **on that PNG** | A |
+| 8 | P95 queue wait **7.60s** | [`assets/job-activity.png`](./assets/job-activity.png) (P95 widget crop) | A |
+| 8b | Dead letters **3,479** in same hour (DLQ worked) | Dead Letters card **on system-overview.png** — expect this if asked; failure injection was on | A |
+| 8c | Screenshot is **not** 20k in-flight | Same PNG: Pending **0**, Processing **5** | A |
 | 9 | Recovered **6,000** jobs in **1,843 ms** | Phase 9 case-study log: `{ restored:6000, durationMs:1843 }` — [BENCHMARKS.md](./docs/BENCHMARKS.md) | C |
 | 10 | Reconcile loop handles **6,000** orphans **&lt; 2s** (in-memory) | `PersistenceRecovery.test.ts` — “restores 6000 … under 2s” | A |
 | 11 | **224** unit tests | `npm test -w apps/worker` → **224 passed** | A |

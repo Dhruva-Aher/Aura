@@ -601,6 +601,14 @@ Documented in [crash-recovery.md](./crash-recovery.md): worker crash → reap; s
 | **Why** | “Match each claim” — prevents drift between ~304 / ~7.5s / ~1.8s marketing and 303.72 / 7.40–7.60 / 1843ms evidence. |
 | **Evidence** | `README.md` claims table; [BENCHMARKS.md](./BENCHMARKS.md). |
 
+### D-P14-10 — Screenshot caption must match picture claims (`DECIDED`)
+
+| | |
+|--|--|
+| **Decision** | `assets/system-overview.png` in README is labeled **local high-volume proof, not free demo**, with an on-page table mapping visible pixels (18,223 / 303.72 / 7.40s / DLQ 3,479 / pending 0) to claim IDs. Live demo URL is a separate claim (4a vs 4b). |
+| **Why** | Bare “under load” alt text let recruiters assume the live site shows those numbers. |
+| **Evidence** | README “Proof screenshot” section; [2026-console-dashboard.md](./benchmark-runs/2026-console-dashboard.md). |
+
 ---
 
 ## Chronological timeline (from git)

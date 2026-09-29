@@ -23,7 +23,9 @@
 
 - It does **not** show 20,000 jobs simultaneously sitting in Redis. At capture, pending was 0 and processing was 5.
 - It does **not** prove free-tier Render can sustain ~304/min.
+- It is **not** a screenshot of the public Vercel/Render demo — README must caption it as local/Docker proof.
 - Dead letters **3,479** are part of that historical window (failure-injection / DLQ path was active) — do not hide this if asked; it is evidence the DLQ path worked under load.
+- Pulse “jobs/sec” is a **short window**; the Throughput card is the **trailing-hour average** (303.72/min). Do not equate one second on the pulse chart with the hour card without converting and stating the window.
 
 ## How “~300/min” and “P95 ~7.5s” map to the resume
 
