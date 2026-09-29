@@ -550,6 +550,9 @@ Documented in [crash-recovery.md](./crash-recovery.md): worker crash → reap; s
 | 224 tests | `npm test -w apps/worker` this SHA |
 | 6k recover &lt;2s | Case-study log `durationMs:1843` + vitest 6k in-memory restore |
 
+> Prefer exact values from README claims table: **303.72**/min, **18,223**/h, P95 **7.40s**/**7.60s**, restore **1,843 ms**.
+
+
 ### D-P14-04 — Evidence grades for every public number (`DECIDED`)
 
 | | |
@@ -589,6 +592,14 @@ Documented in [crash-recovery.md](./crash-recovery.md): worker crash → reap; s
 | **Decision** | README opens with hook (“not a BullMQ wrapper”), plain “what it does,” demo URL, differentiators, two-environment numbers, then “For engineers” depth — scannable in a few seconds. |
 | **Why** | Recruiters bounce on jargon walls; systems depth still available below the fold. |
 | **Evidence** | Root `README.md`. |
+
+### D-P14-09 — Every claim matched 1:1 to evidence (`DECIDED`)
+
+| | |
+|--|--|
+| **Decision** | README “Claims ↔ evidence” table lists each public claim with exact artifact (screenshot pixel, log field, test name, or code path) and grade; soft rounding only allowed in speech if exact values remain cited. |
+| **Why** | “Match each claim” — prevents drift between ~304 / ~7.5s / ~1.8s marketing and 303.72 / 7.40–7.60 / 1843ms evidence. |
+| **Evidence** | `README.md` claims table; [BENCHMARKS.md](./BENCHMARKS.md). |
 
 ---
 

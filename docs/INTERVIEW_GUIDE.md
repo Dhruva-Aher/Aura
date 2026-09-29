@@ -8,20 +8,22 @@ Use this to explain the project clearly without over-claiming.
 
 ## 30-second pitch
 
-> Aura is a distributed job queue I built from scratch on Node, Redis, and Postgres. Redis runs priority queues and leases; Postgres is the durable source of truth. Workers claim with leases and an idempotency fence; a leader-elected scheduler reaps crashes and reconciles Redis from Postgres. On a local high-volume run the console showed about **304 completions/min** with **P95 queue wait around 7.5s**. The public demo is a free-tier, single-process deploy — scale numbers come from local evidence, not that free box.
+> Aura is a distributed job queue I built from scratch on Node, Redis, and Postgres. Redis runs priority queues and leases; Postgres is the durable source of truth. Workers claim with leases and an idempotency fence; a leader-elected scheduler reaps crashes and reconciles Redis from Postgres. On a local high-volume run the console showed **303.72 completions/min**, P95 **7.40s** (widget **7.60s**), and **18,223** completions that hour. The public demo is a free-tier, single-process deploy — scale numbers come from local evidence, not that free box.
 
 ---
 
 ## Numbers — what to say (defensible)
 
+Canonical match table: [README Claims ↔ evidence](../README.md#claims--evidence-matched-11).
+
 | If they ask… | Say… | Point at |
 |--------------|------|----------|
-| “Does the live site do 300/min?” | “No. Live is a free Render demo with light traffic. ~304/min is from a **local** console snapshot.” | `assets/system-overview.png` |
-| “How do you know ~300/min / P95 ~7.5s?” | “Operator console: **303.72 jobs/min**, P95 **7.40s** (latency widget **7.60s**). Throughput × 60 matches the **18,223** completed card.” | [benchmark-runs/2026-console-dashboard.md](./benchmark-runs/2026-console-dashboard.md) |
-| “Why did the resume say 6.5s?” | “I corrected to the screenshot: **~7.5s**. I don’t round down under pressure.” | Same |
-| “20k concurrent?” | “Harness can burst **20k** enqueues; we exercised tens of thousands locally. That screenshot shows a **drained** queue (pending 0) after ~18k completions/hour — not 20k threads.” | `load-test.ts`, BENCHMARKS definitions |
-| “224 vs 250 tests?” | “**224** Vitest cases in `apps/worker` as of this SHA — I count what `vitest run` reports.” | `npm test -w apps/worker` |
-| “6000 jobs recovered in &lt;2s?” | “Case study log: `restored:6000, durationMs:1843`. Plus a vitest that restores 6000 orphans in under 2s in-memory.” | Phase 9 case study + `PersistenceRecovery.test.ts` |
+| “Does the live site do 300/min?” | “No. Live is a free Render demo with light traffic. **303.72**/min is from a **local** console snapshot.” | `assets/system-overview.png` |
+| “How do you know throughput / P95?” | “**303.72 jobs/min**, P95 **7.40s** (widget **7.60s**). Throughput × 60 = **18,223** completed.” | [benchmark-runs/2026-console-dashboard.md](./benchmark-runs/2026-console-dashboard.md) |
+| “Why did an older resume say 6.5s?” | “I match the screenshot now: **7.40–7.60s**. I don’t round down.” | Same |
+| “20k concurrent?” | “Harness can burst **20k** enqueues (claim #14). That screenshot shows a **drained** queue (pending 0) after **18,223**/hour — not 20k threads.” | `load-test.ts`, README claims table |
+| “224 vs 250 tests?” | “**224** Vitest cases — what `vitest run` reports.” | `npm test -w apps/worker` |
+| “6000 jobs recovered?” | “Log: `restored:6000, durationMs:1843`. Plus vitest 6k in-memory &lt;2s.” | BENCHMARKS + `PersistenceRecovery.test.ts` |
 
 Full matrix: [BENCHMARKS.md](./BENCHMARKS.md).
 

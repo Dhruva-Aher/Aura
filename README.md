@@ -30,8 +30,8 @@ Most portfolio “queues” configure **BullMQ/Celery**. Aura implements the har
 | Attention hook | Plain meaning |
 |----------------|---------------|
 | **Owned primitives** | Claim → lease → execute → fence → complete — your code, not `node_modules` |
-| **Redis wipe ≠ lost jobs** | Scheduler rebuilds queues from Postgres (case study: **6,000** jobs in **~1.8s**) |
-| **Honest metrics** | Screenshot-backed **~304 jobs/min**, P95 **~7.5s** — with definitions, not vibes |
+| **Redis wipe ≠ lost jobs** | Scheduler rebuilds queues from Postgres (**6,000** jobs in **1,843 ms** — case-study log) |
+| **Honest metrics** | Screenshot: **303.72 jobs/min**, P95 **7.40s** / **7.60s**, **18,223** completions/hour |
 | **Decision log** | Every major tradeoff written down for interviews |
 
 Deeper comparison: [docs/POSITIONING.md](./docs/POSITIONING.md)
@@ -45,15 +45,39 @@ Deeper comparison: [docs/POSITIONING.md](./docs/POSITIONING.md)
 | | Local / Docker (proof) | Public demo (click around) |
 |--|------------------------|----------------------------|
 | **Purpose** | Scale + recovery evidence | Recruiter-friendly UI |
-| **Throughput** | **~304 jobs/min** · **~18k**/hour | ~1 job / 10–15s (on purpose) |
-| **P95 queue wait** | **≈7.4–7.6s** | N/A (light load) |
-| **Tests** | **224** Vitest cases | — |
-| **Recovery** | **6k** jobs re-queued after Redis wipe in **~1.8s** | — |
-
-Evidence + definitions: [docs/BENCHMARKS.md](./docs/BENCHMARKS.md) · screenshots in `assets/`
+| **Throughput** | **303.72 jobs/min** → **18,223**/hour | ~1 job / 10–15s (on purpose) |
+| **P95 queue wait** | **7.40s** (overview) · **7.60s** (latency widget) | Light load — not a scale claim |
+| **Tests** | **224** Vitest cases (`npm test -w apps/worker`) | — |
+| **Recovery** | **6,000** jobs restored in **1,843 ms** (case-study log) | — |
 
 ---
 
+## Claims ↔ evidence (matched 1:1)
+
+Every public claim below has exactly one evidence pointer. If it is not in this table, do not put it on a resume.
+
+| # | Claim | Exact evidence (quote / path) | Grade |
+|---|-------|-------------------------------|-------|
+| 1 | Job queue **from scratch**, **not a BullMQ wrapper** | In-repo claim/lease/fence/reconcile — `apps/worker/src/services/Worker.ts`, `Scheduler.ts`, `packages/redis/src/lua.ts` (no BullMQ dependency) | A |
+| 2 | **Leases** + **idempotency fences** | `LEASE_MS` + `aura:leased`; fence `aura:executing:<id>` — [lease-protocol.md](./docs/lease-protocol.md), `Idempotency.test.ts` | A |
+| 3 | Postgres = truth; Redis = fast path; **wipe → restore** | `Scheduler.reconcilePendingJobs` — [crash-recovery.md](./docs/crash-recovery.md) | A |
+| 4 | Live **operator console** | [aurasys.vercel.app](https://aurasys.vercel.app) · screenshot [`assets/system-overview.png`](./assets/system-overview.png) | A |
+| 5 | Throughput **303.72 jobs/min** | Same pixel on `system-overview.png` (Throughput card) | A |
+| 6 | Completions **18,223** / hour | Completed card on same screenshot; **303.72 × 60 ≈ 18,223** | A |
+| 7 | P95 queue wait **7.40s** | Job Latency card on `system-overview.png` | A |
+| 8 | P95 queue wait **7.60s** | [`assets/job-activity.png`](./assets/job-activity.png) (P95 widget) | A |
+| 9 | Recovered **6,000** jobs in **1,843 ms** | Phase 9 case-study log: `{ restored:6000, durationMs:1843 }` — [BENCHMARKS.md](./docs/BENCHMARKS.md) | C |
+| 10 | Reconcile loop handles **6,000** orphans **&lt; 2s** (in-memory) | `PersistenceRecovery.test.ts` — “restores 6000 … under 2s” | A |
+| 11 | **224** unit tests | `npm test -w apps/worker` → **224 passed** | A |
+| 12 | HTTP **backpressure** (429 when overloaded) | Lua admission + `AdaptiveThreshold` — `packages/redis/src/lua.ts`, backpressure tests | A |
+| 13 | Free demo is **light** (~1 job / 10–15s; may sleep) | [DEPLOY_FREE.md](./docs/DEPLOY_FREE.md); Render Free behavior | A (ops) |
+| 14 | Load harness can burst **20,000** enqueues | `apps/worker/src/load-test.ts` `--jobs 20000` — **capability**, not the screenshot’s in-flight depth | B |
+
+Full definitions + “do not say”: [docs/BENCHMARKS.md](./docs/BENCHMARKS.md) · [docs/benchmark-runs/2026-console-dashboard.md](./docs/benchmark-runs/2026-console-dashboard.md)
+
+**Rounding rule:** Prefer exact screenshot/log values in this table. Soft wording like “~304/min” or “~7.5s” is only OK in speech if you can still point at **303.72** / **7.40–7.60**.
+
+---
 ## Try it
 
 ```bash
