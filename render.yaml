@@ -1,62 +1,44 @@
-# One-click always-on deploy: https://dashboard.render.com/select-repo?type=blueprint
-# After deploy, set Vercel env BACKEND_URL=https://<aura-api service URL>
+# Free-tier Blueprint (no paid plans).
+# Deploy: https://dashboard.render.com/blueprints → New Blueprint Instance → this repo.
+#
+# Requires you to paste DATABASE_URL (Neon free) and REDIS_URL (Upstash free)
+# when Render prompts for env vars (sync: false).
+#
+# Notes:
+# - Free web services sleep after ~15 minutes idle (wake on next request ~30–60s).
+# - Free Render Postgres expires after 30 days — Neon is preferred (see docs/DEPLOY_FREE.md).
+# - Workers run inside the API process (EMBEDDED_WORKER=true).
 
 services:
   - type: web
     name: aura-api
     runtime: node
-    plan: starter
+    plan: free
     buildCommand: npm install && npm run db:generate
     startCommand: sh -c "npm run db:push && npm run start -w api"
     healthCheckPath: /healthz
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: "3001"
-      - key: DATABASE_URL
-        fromDatabase:
-          name: aura-postgres
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: aura-redis
-          property: connectionString
-
-  - type: worker
-    name: aura-worker
-    runtime: node
-    plan: starter
-    buildCommand: npm install && npm run db:generate
-    startCommand: npm run start -w worker
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: DATABASE_URL
-        fromDatabase:
-          name: aura-postgres
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: aura-redis
-          property: connectionString
+      - key: EMBEDDED_WORKER
+        value: "true"
+      - key: FREE_TIER
+        value: "true"
       - key: DEFAULT_WORKERS
-        value: "2"
+        value: "1"
       - key: HIGH_WORKERS
-        value: "1"
+        value: "0"
       - key: LOW_WORKERS
-        value: "1"
+        value: "0"
       - key: WORKER_CONCURRENCY
+        value: "5"
+      - key: ENQUEUE_RATE_LIMIT_PER_SEC
         value: "20"
-
-  - type: redis
-    name: aura-redis
-    plan: starter
-    maxmemoryPolicy: allkeys-lru
-    ipAllowList: []
-
-databases:
-  - name: aura-postgres
-    plan: basic-256mb
+      - key: MAX_QUEUE_THRESHOLD
+        value: "500"
+      - key: JOB_GENERATOR_ENABLED
+        value: "false"
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false

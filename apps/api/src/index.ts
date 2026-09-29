@@ -89,3 +89,15 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`API running on http://localhost:${PORT}`);
 });
+
+// Free-tier / single-service mode: run workers + scheduler in this process
+// so Render Free does not need a paid Background Worker.
+if (process.env.EMBEDDED_WORKER === 'true') {
+  import('../../worker/src/runtime')
+    .then(({ startWorkerRuntime }) => startWorkerRuntime())
+    .then(() => console.log('[API] Embedded worker runtime started'))
+    .catch((err: unknown) => {
+      console.error('[API] Failed to start embedded worker:', err);
+      process.exit(1);
+    });
+}

@@ -69,9 +69,14 @@ To benchmark the system, run `npm run load-test` from `apps/worker`. The load te
 
 ## Deployment Instructions
 
-### Always-on production (Render — recommended)
+### Free cloud (student — recommended)
 
-No VPS required: **[docs/DEPLOY_RENDER.md](./docs/DEPLOY_RENDER.md)** (Blueprint from `render.yaml`).
+**$0/month** (sleeps when idle): **[docs/DEPLOY_FREE.md](./docs/DEPLOY_FREE.md)**  
+Render Free web service + Neon Postgres + Upstash Redis. Workers run inside the API process.
+
+### Always-on production (Render paid)
+
+No VPS required: **[docs/DEPLOY_RENDER.md](./docs/DEPLOY_RENDER.md)** (paid Starter plans).
 
 ### Always-on production (VPS)
 
