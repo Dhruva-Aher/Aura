@@ -1,4 +1,9 @@
-export const API_BASE_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:3001';
+const viteApi = (import.meta as any).env.VITE_API_URL as string | undefined;
+
+/** Production console on Vercel uses same-origin /api/* (see vercel.json rewrites + BACKEND_URL). */
+export const API_BASE_URL =
+  viteApi ||
+  ((import.meta as any).env.PROD ? '/api' : 'http://localhost:3001');
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {

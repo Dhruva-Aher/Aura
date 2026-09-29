@@ -69,9 +69,13 @@ To benchmark the system, run `npm run load-test` from `apps/worker`. The load te
 
 ## Deployment Instructions
 
+### Always-on production (Render — recommended)
+
+No VPS required: **[docs/DEPLOY_RENDER.md](./docs/DEPLOY_RENDER.md)** (Blueprint from `render.yaml`).
+
 ### Always-on production (VPS)
 
-For a public API that stays up 24/7 (API + worker + Postgres + Redis + HTTPS), see **[docs/DEPLOY_VPS.md](./docs/DEPLOY_VPS.md)**.
+For a public API on your own VM (API + worker + Postgres + Redis + HTTPS), see **[docs/DEPLOY_VPS.md](./docs/DEPLOY_VPS.md)**.
 
 Quick path:
 

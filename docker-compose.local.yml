@@ -1,0 +1,75 @@
+# Local always-on backend (no Caddy). Exposes API on port 3001 for a tunnel or LAN testing.
+#   cp deploy/env.example .env.local
+#   docker compose -f docker-compose.local.yml --env-file .env.local up -d --build
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdevpassword}
+      POSTGRES_DB: ${POSTGRES_DB:-aura}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  api:
+    build: .
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-localdevpassword}@postgres:5432/${POSTGRES_DB:-aura}?schema=public
+      REDIS_URL: redis://redis:6379
+      LOG_FORMAT: json
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["sh", "-c", "npm run db:push && npm run start -w api"]
+    ports:
+      - "3001:3001"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3001/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 90s
+
+  worker:
+    build: .
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-localdevpassword}@postgres:5432/${POSTGRES_DB:-aura}?schema=public
+      REDIS_URL: redis://redis:6379
+      DEFAULT_WORKERS: ${DEFAULT_WORKERS:-2}
+      HIGH_WORKERS: ${HIGH_WORKERS:-1}
+      LOW_WORKERS: ${LOW_WORKERS:-1}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-20}
+    depends_on:
+      api:
+        condition: service_healthy
+    command: ["npm", "run", "start", "-w", "worker"]
+
+volumes:
+  postgres_data:
+  redis_data:

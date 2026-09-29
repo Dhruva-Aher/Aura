@@ -1,0 +1,62 @@
+# One-click always-on deploy: https://dashboard.render.com/select-repo?type=blueprint
+# After deploy, set Vercel env BACKEND_URL=https://<aura-api service URL>
+
+services:
+  - type: web
+    name: aura-api
+    runtime: node
+    plan: starter
+    buildCommand: npm install && npm run db:generate
+    startCommand: sh -c "npm run db:push && npm run start -w api"
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3001"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aura-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: aura-redis
+          property: connectionString
+
+  - type: worker
+    name: aura-worker
+    runtime: node
+    plan: starter
+    buildCommand: npm install && npm run db:generate
+    startCommand: npm run start -w worker
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aura-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: aura-redis
+          property: connectionString
+      - key: DEFAULT_WORKERS
+        value: "2"
+      - key: HIGH_WORKERS
+        value: "1"
+      - key: LOW_WORKERS
+        value: "1"
+      - key: WORKER_CONCURRENCY
+        value: "20"
+
+  - type: redis
+    name: aura-redis
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
+databases:
+  - name: aura-postgres
+    plan: basic-256mb

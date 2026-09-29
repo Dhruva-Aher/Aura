@@ -37,6 +37,8 @@ packages/database/prisma/dev.db-journal
 # Vercel / Turborepo
 .vercel
 .turbo
+.run/
+.env.local
 # Ignore env files everywhere (monorepo safe)
 **/.env
 **/.env.*
