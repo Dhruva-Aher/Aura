@@ -67,4 +67,4 @@ Scheduler (elected) ──► reap / promote / reconcile / SLOs
 
 ## How to verify claims
 
-See [BENCHMARKS.md](./BENCHMARKS.md). Do not use the free URL as proof of 20k concurrency.
+See [BENCHMARKS.md](./BENCHMARKS.md) and [benchmark-runs/](./benchmark-runs/). Do not use the free URL as proof of ~304 jobs/min or 20k burst.

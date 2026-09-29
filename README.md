@@ -11,11 +11,11 @@ Aura has **two environments**. Mixing them up causes confusing demos and unsafe 
 | | **Local load test (resume)** | **Public free demo (live)** |
 |--|------------------------------|-----------------------------|
 | **URL** | Your machine (`docker compose` + `npm run dev`) | [aurasys.vercel.app](https://aurasys.vercel.app) → API [aura-api-184s.onrender.com](https://aura-api-184s.onrender.com) |
-| **Scale** | **20k+** in-flight jobs; **~300 jobs/min**; P95 E2E **~6.5s** | Light synthetic traffic (~1 job / 10–15s when generator on) |
-| **Tests / recovery** | **~220–250** Vitest cases; reconcile **6k+** jobs after Redis loss | Not the scale environment |
-| **Doc** | [docs/BENCHMARKS.md](./docs/BENCHMARKS.md) | Same file, section B |
+| **Scale** | **~304 jobs/min**; P95 queue wait **≈7.4–7.6s**; **~18k** completions/hour (console snapshot). Load-test harness burst-capable to **20k** jobs. | Light synthetic traffic (~1 job / 10–15s when generator on) |
+| **Tests / recovery** | **224** Vitest cases; Redis wipe restore **6k** jobs in **~1.8s** (case-study log) + in-memory timing guard | Not the scale environment |
+| **Evidence** | [docs/BENCHMARKS.md](./docs/BENCHMARKS.md) · [docs/benchmark-runs/](./docs/benchmark-runs/) · `assets/*.png` | Same docs, section B |
 
-**Interview tip:** Claim scale from local benchmarks + architecture. Use the live site to show the console, SSE, and job lifecycle — not 20k concurrency.
+**Interview tip:** Only quote numbers you can point at ([BENCHMARKS.md](./docs/BENCHMARKS.md)). Use the live site for UI/SSE — not scale.
 
 More: [docs/INTERVIEW_GUIDE.md](./docs/INTERVIEW_GUIDE.md) · [docs/DECISIONS.md](./docs/DECISIONS.md) (full catalog) · [docs/PROJECT_TRACE.md](./docs/PROJECT_TRACE.md)
 
@@ -75,7 +75,7 @@ Key metrics tracked:
 - Dead letter rates
 
 ## Benchmark Methodology
-To benchmark the system, run `npm run load-test` from `apps/worker`. The load test pushes 20,000 jobs through the API concurrently while running multiple worker instances. It tracks end-to-end latency, queue wait time, and processing throughput.
+Defensible claims and evidence grades live in [docs/BENCHMARKS.md](./docs/BENCHMARKS.md). Console screenshots under `assets/` are the primary proof of **~304 jobs/min** and **P95 ≈ 7.5s**. To re-run: `npm run load-test -w apps/worker -- burst --jobs 20000 --concurrency 20` (local API + workers + Postgres + Redis), then archive JSON under `docs/benchmark-runs/`.
 
 ## Known Limitations
 - The payload column in PostgreSQL uses `JSONB`, which is not structurally validated upon extraction. Handlers must parse/validate their own payloads.

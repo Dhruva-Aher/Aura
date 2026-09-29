@@ -404,8 +404,8 @@ Documented in [crash-recovery.md](./crash-recovery.md): worker crash → reap; s
 
 | | |
 |--|--|
-| **Decision** | Large Vitest suite under `apps/worker/src/__tests__` (~223 `it`/`test` cases): lifecycle, fence, DLQ, backpressure, priority, scheduler lock, recovery, SLOs, metrics, logger. |
-| **Why** | Resume “~250 tests”; interviewable proofs without needing production cluster. |
+| **Decision** | Large Vitest suite under `apps/worker/src/__tests__` (**224** `it`/`test` cases as of 2026-09-29): lifecycle, fence, DLQ, backpressure, priority, scheduler lock, recovery (incl. 6k restore timing), SLOs, metrics, logger. |
+| **Why** | Interviewable proofs without needing a production cluster; count matches `vitest run`, not a rounded “250”. |
 | **Evidence** | `__tests__/*`; `npm test -w apps/worker`. |
 
 ### D-P11-02 — Pure functions extracted for testability (`DECIDED`)
@@ -544,10 +544,18 @@ Documented in [crash-recovery.md](./crash-recovery.md): worker crash → reap; s
 
 | Claim | Methodology pointer |
 |-------|---------------------|
-| 20k+ concurrent tasks | Local burst load-test outstanding queue/leases |
-| ~300 jobs/min, P95 ~6.5s | Local load-test E2E report |
-| ~250 tests | Vitest suite size (~223 cases counted; suite grew toward ~250) |
-| 6k+ recover &lt;2s | Reconcile + recovery tests/scripts |
+| ~304 jobs/min, P95 ≈ 7.4–7.6s, ~18k completions/h | Console screenshots (`assets/`) — see [BENCHMARKS.md](./BENCHMARKS.md) grade A |
+| 20k burst / tens of thousands exercised | `load-test.ts --jobs 20000` + historical README (not “20k threads on screenshot”) |
+| 224 tests | `npm test -w apps/worker` this SHA |
+| 6k recover &lt;2s | Case-study log `durationMs:1843` + vitest 6k in-memory restore |
+
+### D-P14-04 — Evidence grades for every public number (`DECIDED`)
+
+| | |
+|--|--|
+| **Decision** | Every resume/demo number must have grade **A** (artifact), **B** (reproducible harness), **C** (historical log), or **D** (design target only). Undocumented numbers are forbidden in pitch docs. |
+| **Why** | Interviewers ask “how do you know?”; rounded claims (6.5s, 250 tests) were weaker than screenshots/vitest. |
+| **Evidence** | [BENCHMARKS.md](./BENCHMARKS.md), [benchmark-runs/](./benchmark-runs/). |
 
 ---
 

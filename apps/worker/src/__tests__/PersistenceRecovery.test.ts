@@ -297,6 +297,38 @@ describe('Batch processing', () => {
     expect(restored).toBe(25);
     expect(redis.zcard('aura:queue:default')).toBe(25);
   });
+
+  /**
+   * Scale/timing guard for the resume recovery claim.
+   * In-memory fakes prove the reconcile loop can restore 6k orphans well under 2s.
+   * Real Redis+Postgres timing (~1843ms for 6000) is documented in docs/BENCHMARKS.md
+   * from the Phase 9 failure case study (Scheduler "Reconciliation complete" log).
+   */
+  it('restores 6000 orphaned PENDING jobs in under 2s (in-memory)', async () => {
+    const N = 6000;
+    const jobs = Array.from({ length: N }, (_, i) => ({
+      id: `j-${i.toString().padStart(5, '0')}`,
+      status: 'PENDING',
+      priority: i % 3 === 0 ? 2 : i % 3 === 1 ? 0 : -1,
+      attempts: 0,
+      maxAttempts: 3,
+    }));
+    const db = new FakeDb(jobs);
+    const redis = new FakeRedis();
+
+    const t0 = Date.now();
+    const { restored, skipped } = await reconcilePending(db, redis, /* batchSize */ 1000);
+    const durationMs = Date.now() - t0;
+
+    expect(restored).toBe(N);
+    expect(skipped).toBe(0);
+    expect(durationMs).toBeLessThan(2000);
+    expect(
+      redis.zcard('aura:queue:high') +
+      redis.zcard('aura:queue:default') +
+      redis.zcard('aura:queue:low'),
+    ).toBe(N);
+  }, 10_000);
 });
 
 describe('Mixed state: some orphaned, some already queued', () => {

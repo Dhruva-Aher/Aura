@@ -1,84 +1,98 @@
-# Aura Benchmarks & Claimed Numbers
+# Aura Benchmarks — Defensible Numbers
 
-This document separates **two different environments** so resume claims stay honest and interview-safe.
+**Rule:** Every public number has an evidence grade and a pointer. If you cannot point, do not claim.
 
-| Environment | Purpose | What you can claim |
-|-------------|---------|-------------------|
-| **A. Local / Docker load test** | Engineering proof of scale | Resume numbers (20k, ~300/min, P95, recovery) |
-| **B. Free public demo** (Render + Neon + Render Redis) | Portfolio UI that stays online cheaply | Live traffic is **light by design** |
-
-Never imply that [aurasys.vercel.app](https://aurasys.vercel.app) is currently processing 20,000 concurrent jobs. That number comes from **local** load testing.
+Related: [benchmark-runs/](./benchmark-runs/) · [INTERVIEW_GUIDE.md](./INTERVIEW_GUIDE.md) · [DECISIONS.md](./DECISIONS.md)
 
 ---
 
-## A. Resume / local benchmark claims
+## Two environments (never mix)
 
-These match the project resume bullet and the load-test tooling in-repo.
+| | **A. Local / Docker (resume)** | **B. Free public demo** |
+|--|--------------------------------|-------------------------|
+| Purpose | Prove scale + recovery | Portfolio UI stays online cheaply |
+| Where | Your machine + `docker compose` | [aurasys.vercel.app](https://aurasys.vercel.app) → [aura-api-184s.onrender.com](https://aura-api-184s.onrender.com) |
+| Evidence | Screenshots, vitest, load-test harness | Live `/healthz`, light generator |
 
-### Claims
-
-| Claim | Meaning | How to reproduce |
-|-------|---------|------------------|
-| **20,000+ concurrent tasks** | Burst enqueue of ≥20k jobs through the API while workers drain the Redis priority queues | `npm run load-test -w apps/worker -- burst --jobs 20000 --concurrency 20` (API + workers + Postgres + Redis running locally via `docker compose` + `npm run dev`) |
-| **~300 jobs/min @ P95 ≈ 6.5s** | Sustained completion throughput with end-to-end queue-wait P95 around 6.5 seconds under that load profile | Same load-test harness; read **E2E latency P95** and throughput from the report (`tsx src/load-test.ts …`). Steady scenario: `--rps` / watch mode. |
-| **~220–250 unit tests** | Vitest suites under `apps/worker/src/__tests__/` covering leases, idempotency, retry/DLQ, backpressure, scheduler lock, recovery, SLOs, etc. | `npm test -w apps/worker` — currently **~223** `it`/`test` cases (resume “250” is the rounded suite size as tests were added). |
-| **6,000+ jobs recovered in &lt;2s** | After Redis queue state is wiped, reconciler restores `PENDING`/`PROCESSING` jobs from Postgres back into Redis | Covered by recovery paths in `docs/crash-recovery.md` + `PersistenceRecovery` tests; large-N validation via reconcile + synthetic scripts (`scripts/synthetic-load-test.ts`). |
-
-### What “concurrent” means here
-
-- Jobs sit in Redis sorted sets (`aura:queue:*`) and/or leases (`aura:leased`) while workers claim with `ZPOPMAX`.
-- “20,000+ concurrent” = **in-flight queue depth / outstanding work**, not 20,000 Node threads.
-- Postgres remains the durable source of truth; Redis is the execution plane.
-
-### Hardware / setup assumptions (local)
-
-- Node 18+
-- Postgres 15 + Redis 7 via `docker compose`
-- Multiple worker loops (`DEFAULT_WORKERS` / pools) — **not** a single free-tier container
-
-If you re-run benchmarks, paste the load-test summary into `docs/benchmark-runs/` (date, machine, commit SHA, command, P50/P95/P99, throughput) so claims stay auditable.
+Never imply the free URL is processing tens of thousands of jobs.
 
 ---
 
-## B. Live free-tier demo (current production)
+## A. Resume numbers — claim sheet
 
-| Item | Value |
-|------|--------|
-| Console | https://aurasys.vercel.app |
-| API | https://aura-api-184s.onrender.com |
-| Postgres | Neon free (`Aura` project) |
-| Redis | Render Key Value **free** |
-| Compute | **One** Render Free web service: API + embedded worker + scheduler |
+| Claim (say this) | Exact evidence | Grade | Do **not** say |
+|------------------|----------------|-------|----------------|
+| **~304 jobs/min** sustained completion rate | Console: **303.72 Jobs/min**; Completed **18,223**/hour — [`assets/system-overview.png`](../assets/system-overview.png), [write-up](./benchmark-runs/2026-console-dashboard.md) | **A** | “Live Vercel does 300/min” |
+| **P95 queue wait ≈ 7.4–7.6s** under that load | Same snapshot **7.40s**; latency widget **7.60s** — `system-overview.png`, `job-activity.png` | **A** | Claiming **6.5s** (older resume rounding — screenshots show ~7.5s) |
+| **~18k jobs completed in a 1h window** | Completed card **18,223** on same screenshot (matches 303.72×60) | **A** | “20k concurrent threads” |
+| **20k+ jobs exercised / burst-capable** | Load-test supports `--jobs 20000`; README historically “Tested under 20 000+ jobs”; harness: `apps/worker/src/load-test.ts` | **B** (+ historical README) | “Screenshot shows 20k in-flight” (it shows drained queue: pending 0, processing 5) |
+| **6,000+ jobs recovered after Redis wipe in &lt;2s** | (1) Phase 9 case study log: `restored:6000, durationMs:1843` (**C**). (2) Vitest: restores 6000 orphans &lt;2s in-memory — `PersistenceRecovery.test.ts` (**A**, algorithm). | **A + C** | “Free Render recovered 6k in 2s” |
+| **224 Vitest cases** (worker suite) | `npm test -w apps/worker` → **224 passed** (2026-09-29, this tree). Count `it(`/`test(` under `apps/worker/src/__tests__`. | **A** | “250 tests” without noting the counted total is **224** |
 
-### Live demo targets (intentional)
+### Preferred one-liner (interview-safe)
 
-| Metric | Target on free demo |
-|--------|---------------------|
-| Auto job rate | ~1 job / 10–15s when generator is on (~4–6 jobs/min) |
-| Workers | 1 loop, concurrency 3 |
-| Queue cap | Low (`MAX_QUEUE_THRESHOLD≈200`) |
-| Sleep | Render Free sleeps after ~15 min idle; first request can take 30–60s |
-
-These limits exist so the site can stay **$0** and remain usable. They are **not** the resume scale numbers.
-
-### How to keep the dashboard “alive” longer
-
-1. Keep `JOB_GENERATOR_ENABLED=true` with a slow interval (see Render env).
-2. Or periodically open the console / hit `/healthz` so the free service does not sleep as often.
-3. For interview demos: open the site a minute early (wake), then enqueue 5–10 jobs live.
+> “On a local high-volume run the console showed about **304 completions per minute** with **P95 queue wait around 7.5 seconds**, and roughly **18k completions in an hour**. I also have a reconcile path that restored **6,000** pending jobs after a Redis wipe in about **1.8s** in our failure case study, and the suite has **224** unit tests including a 6k restore timing guard. The public site is a free single-process demo — different numbers.”
 
 ---
 
-## Interview one-liner
+## Definitions (so “concurrent” cannot trap you)
 
-> “The public demo runs on a free single-process host with light synthetic traffic so recruiters can click around. The resume throughput and recovery numbers come from local Docker load tests and Vitest suites documented in `docs/BENCHMARKS.md` — happy to walk through the lease/reconcile design that makes those numbers possible.”
+| Phrase | Meaning in Aura |
+|--------|-----------------|
+| **Jobs/min (throughput)** | Completions in the last hour ÷ 60 (`metricsSnapshot`) |
+| **P95 latency** | 95th percentile of **queue wait** (enqueue/scheduled → started), not API RTT |
+| **In-flight / concurrent** | Jobs in Redis queues + leases + delayed — **not** OS threads |
+| **20k exercised** | System ingested/processed on the order of tens of thousands of jobs in local testing; use load-test for a fresh burst |
+| **Recovered** | Scheduler `reconcilePendingJobs` re-`ZADD`s Postgres `PENDING` jobs missing from Redis |
 
 ---
 
-## Related docs
+## How each number is produced in code
 
-- Architecture: [ARCHITECTURE.md](../ARCHITECTURE.md)
-- Decisions: [DECISIONS.md](./DECISIONS.md)
-- Interview deep-dive: [INTERVIEW_GUIDE.md](./INTERVIEW_GUIDE.md)
-- Crash recovery: [crash-recovery.md](./crash-recovery.md)
-- Free deploy: [DEPLOY_FREE.md](./DEPLOY_FREE.md)
+| Number | Code path |
+|--------|-----------|
+| Throughput jobs/min | `apps/api/src/services/metricsSnapshot.ts` — `zcount(aura:metrics:throughput, lastHour) / 60` |
+| P95 latency | Same file — percentile over latency samples ZSET |
+| Pulse jobs/sec | `apps/api/src/routes/metrics.ts` — 10s buckets; ×6 ≈ jobs/min |
+| Reconcile duration | `Scheduler.reconcilePendingJobs` logs `{ restored, skipped, durationMs }` |
+| Load-test P50/P95/P99 | `apps/worker/src/load-test.ts` — `summariseLatencies` |
+
+---
+
+## Reproducing load / recovery
+
+```bash
+# Worker unit tests (includes 6k in-memory reconcile timing)
+npm test -w apps/worker
+
+# Burst load (needs local API + Redis + Postgres + workers)
+npm run load-test -w apps/worker -- burst --jobs 20000 --concurrency 20 --json
+# Save output under docs/benchmark-runs/ (see README there)
+```
+
+Recovery against **real** Redis/Postgres: wipe Redis queues while Postgres still has `PENDING` rows, restart scheduler, read `Reconciliation complete` log / `aura:health:scheduler:reconcile` hash.
+
+---
+
+## B. Live free-tier demo (intentional small numbers)
+
+| Metric | Target | Why |
+|--------|--------|-----|
+| Auto job rate | ~1 job / 10–15s (~4–6/min) when generator on | Survive Render Free sleep + 1 CPU |
+| Workers | 1 loop, concurrency 3 | Embedded worker in API process |
+| Queue cap | `MAX_QUEUE_THRESHOLD≈200` | Avoid free-tier meltdown |
+| Cold start | 30–60s after ~15 min idle | Render Free behavior |
+
+These are **ops targets**, not resume scale claims.
+
+---
+
+## Changelog of claim corrections
+
+| Date | Change | Why |
+|------|--------|-----|
+| 2026-09-29 | Prefer **P95 ≈ 7.4–7.6s** over resume “~6.5s” | Screenshots are the A-grade evidence |
+| 2026-09-29 | Prefer **~304 jobs/min** / **18,223 / hour** | Same screenshot; formula-consistent |
+| 2026-09-29 | Tests = **224** (not “250”) | `vitest run` count this SHA |
+| 2026-09-29 | Split 20k “exercised/burst” vs “concurrent in-flight on screenshot” | Screenshot shows drained queue |
+| 2026-09-29 | Recovery: cite log **1843ms** + vitest 6k guard | Dual evidence |
