@@ -20,21 +20,25 @@ Never imply the free URL is processing tens of thousands of jobs.
 
 ## A. Resume numbers — claim sheet
 
-Canonical 1:1 match also lives in the root [README.md](../README.md#claims--evidence-matched-11).
+Root [README.md](../README.md) is **recruiter-short**. This table is the canonical **1:1 claim ↔ evidence** match for interviews.
 
-| Claim (say this) | Exact evidence | Grade | Do **not** say |
+| Claim (say this) | Exact evidence | Grade | Interview note |
 |------------------|----------------|-------|----------------|
-| **303.72 jobs/min** (speech: ~304) | Console Throughput card — [`assets/system-overview.png`](../assets/system-overview.png), [write-up](./benchmark-runs/2026-console-dashboard.md) | **A** | “Live Vercel does 300/min” |
-| **18,223** completions / hour | Completed card on same screenshot; equals `303.72 × 60` | **A** | “20k concurrent threads” |
-| P95 **7.40s** (overview) and **7.60s** (widget) | `system-overview.png` + `job-activity.png` | **A** | Claiming **6.5s** (older resume rounding) |
-| **20k** burst **capability** | `load-test.ts --jobs 20000` | **B** | “Screenshot shows 20k in-flight” (pending was 0) |
-| **6,000** restored in **1,843 ms** | Phase 9 log `{ restored:6000, durationMs:1843 }` | **C** | “Free Render recovered 6k in 2s” |
-| **6,000** orphans restored **&lt;2s** in-memory | `PersistenceRecovery.test.ts` | **A** | Equating in-memory timing with prod Redis RTT |
-| **224** Vitest cases | `npm test -w apps/worker` → **224 passed** (2026-09-29) | **A** | “250 tests” without recount |
+| **303.72 jobs/min** (speech: ~304) | Throughput card — [`assets/system-overview.png`](../assets/system-overview.png), [write-up](./benchmark-runs/2026-console-dashboard.md) | **A** | Local proof; demo uses light traffic |
+| **18,223** completions / hour | Completed card on same screenshot; `303.72 × 60` | **A** | Trailing-hour window |
+| P95 **7.40s** / **7.60s** | `system-overview.png` + `job-activity.png` | **A** | Queue wait, not API RTT |
+| In-flight at capture: Pending **0**, Processing **5** | Status cards on overview PNG | **A** | Drained snapshot |
+| Dead letters **3,479** same hour | Dead Letters card on overview PNG | **A** | DLQ under failure injection |
+| **20k** burst capability | `load-test.ts --jobs 20000` | **B** | Harness capacity |
+| **6,000** restored in **1,843 ms** | Log `{ restored:6000, durationMs:1843 }` | **C** | Re-queue time |
+| **6,000** orphans under **2s** in-memory | `PersistenceRecovery.test.ts` | **A** | Algorithm guard |
+| **224** Vitest cases | `npm test -w apps/worker` → **224 passed** | **A** | Worker suite |
+| Built from scratch in-repo | `Worker.ts`, `Scheduler.ts`, `lua.ts` | **A** | First-party primitives |
+| Live console | [aurasys.vercel.app](https://aurasys.vercel.app) | **A** | Interactive UI |
 
 ### Preferred one-liner (interview-safe)
 
-> “On a local high-volume run the console showed **303.72 completions/min**, P95 queue wait **7.40s** (widget **7.60s**), and **18,223** completions in that hour. A Redis-wipe case study restored **6,000** pending jobs in **1,843 ms**; the suite has **224** unit tests including a 6k restore timing guard. The public site is a free single-process demo — different numbers.”
+> “On a local high-volume run the console showed **303.72 completions/min**, P95 queue wait **7.40s** (widget **7.60s**), and **18,223** completions in that hour. A Redis-wipe case study restored **6,000** pending jobs in **1,843 ms**; the suite has **224** unit tests including a 6k restore timing guard. The public site is for UI walkthrough — scale evidence is local.”
 
 ---
 

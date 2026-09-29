@@ -14,7 +14,7 @@ Use this to explain the project clearly without over-claiming.
 
 ## Numbers — what to say (defensible)
 
-Canonical match table: [README Claims ↔ evidence](../README.md#claims--evidence-matched-11).
+Canonical match table: [BENCHMARKS.md](./BENCHMARKS.md) (claim sheet).
 
 | If they ask… | Say… | Point at |
 |--------------|------|----------|

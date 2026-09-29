@@ -613,9 +613,17 @@ Documented in [crash-recovery.md](./crash-recovery.md): worker crash → reap; s
 
 | | |
 |--|--|
-| **Decision** | Root README uses positive framing only (what Aura is, what each environment offers, what the screenshot shows). Contrast/anti-claims (“not BullMQ”, “do not say”, “not the free demo”) live in POSITIONING / BENCHMARKS / INTERVIEW_GUIDE for interview prep. |
+| **Decision** | Root README uses positive framing only (what Aura is, what each environment offers, what the screenshot shows). Contrast/anti-claims live in POSITIONING / BENCHMARKS / INTERVIEW_GUIDE for interview prep. |
 | **Why** | Recruiter glance should feel confident and clear; caveats belong in depth docs. |
 | **Evidence** | Root `README.md`. |
+
+### D-P14-12 — FAANG-recruiter glance layout (`DECIDED`)
+
+| | |
+|--|--|
+| **Decision** | README optimized for ~5–10s sourcer scan: role line (Backend / distributed systems), demo URL, 4 highlight bullets with exact metrics, one screenshot + compact metric table, short architecture, quick start. Full claim↔evidence matrix moved to [BENCHMARKS.md](./BENCHMARKS.md). |
+| **Why** | FAANG recruiters skim for role fit, stack, concrete outcomes, and a link they can open — audit tables and “claim grades” read as internal homework, not product signal. |
+| **Evidence** | Root `README.md` (post-`42e11ec` rewrite). |
 
 ---
 
