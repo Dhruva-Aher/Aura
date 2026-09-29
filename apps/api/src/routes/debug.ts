@@ -50,4 +50,37 @@ router.get('/verify', async (_req, res) => {
   }
 });
 
+/**
+ * Factory-reset queues for free-tier / demo cleanup.
+ * Requires header: X-Reset-Token: <RESET_TOKEN>
+ */
+router.post('/factory-reset', async (req, res) => {
+  const expected = process.env.RESET_TOKEN;
+  if (!expected || req.header('x-reset-token') !== expected) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
+
+  try {
+    await prisma.jobEvent.deleteMany();
+    await prisma.job.deleteMany();
+    await prisma.worker.deleteMany();
+
+    const keys = await redis.keys('aura:*');
+    if (keys.length) {
+      // Pipeline deletes in chunks to avoid huge MULTI payloads.
+      for (let i = 0; i < keys.length; i += 500) {
+        await redis.del(...keys.slice(i, i + 500));
+      }
+    }
+
+    res.json({
+      ok: true,
+      deletedRedisKeys: keys.length,
+    });
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
+  }
+});
+
 export default router;
