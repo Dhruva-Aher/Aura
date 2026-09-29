@@ -73,5 +73,6 @@ Deploy: [Free](./docs/DEPLOY_FREE.md) · [Render](./docs/DEPLOY_RENDER.md) · [V
 |-----|-----|
 | [BENCHMARKS.md](./docs/BENCHMARKS.md) | Claim ↔ evidence |
 | [FAANG_RECRUITER_CHECK.md](./docs/FAANG_RECRUITER_CHECK.md) | Research-backed sourcer audit |
+| [PORTFOLIO_PLAYBOOK.md](./docs/PORTFOLIO_PLAYBOOK.md) | Reusable process for your next project |
 | [INTERVIEW_GUIDE.md](./docs/INTERVIEW_GUIDE.md) | How to present Aura |
 | [lease-protocol.md](./docs/lease-protocol.md) / [crash-recovery.md](./docs/crash-recovery.md) | Protocol deep-dives |

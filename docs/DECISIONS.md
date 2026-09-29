@@ -630,8 +630,16 @@ Documented in [crash-recovery.md](./crash-recovery.md): worker crash → reap; s
 | | |
 |--|--|
 | **Decision** | Re-index knowledge graph, verify live demo/healthz, re-run 224 tests, document audit in [FAANG_RECRUITER_CHECK.md](./FAANG_RECRUITER_CHECK.md); add GitHub Actions CI for worker Vitest (recruiter-visible green checks). |
-| **Why** | Prior glance was incomplete (CI gap; docs/tests excluded from earlier mental model). External guidance emphasizes CI + short README + live demo + reliability signals. |
-| **Evidence** | `.github/workflows/ci.yml`, [FAANG_RECRUITER_CHECK.md](./FAANG_RECRUITER_CHECK.md), graph project `Users-dhruv-.gemini-antigravity-scratch-aura`. |
+| **Why** | Prior glance was incomplete (CI gap). External guidance emphasizes CI + short README + live demo + reliability signals. |
+| **Evidence** | `.github/workflows/ci.yml`, [FAANG_RECRUITER_CHECK.md](./FAANG_RECRUITER_CHECK.md). |
+
+### D-P14-14 — Reusable portfolio hardening prompt + skill (`DECIDED`)
+
+| | |
+|--|--|
+| **Decision** | Encode Aura’s documentation/claims/recruiter process as a personal Cursor skill (`~/.cursor/skills/portfolio-project-hardening`) plus [PORTFOLIO_PLAYBOOK.md](./PORTFOLIO_PLAYBOOK.md) so the same bar applies to every future project. |
+| **Why** | User goal: verifiable claims, recruiter-friendly README, owned differentiation, decision logging, metrics/goals, reusable across repos. |
+| **Evidence** | Personal skill + PROMPT.md; [PORTFOLIO_PLAYBOOK.md](./PORTFOLIO_PLAYBOOK.md); personal store `prompts/PORTFOLIO_PROJECT_HARDENING.md`. |
 
 ---
 
