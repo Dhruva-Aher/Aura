@@ -2,7 +2,7 @@
 
 Use this to explain the project clearly without over-claiming.  
 **Numbers bible:** [BENCHMARKS.md](./BENCHMARKS.md) (evidence grades).  
-**Positioning / XYZ worksheets:** [POSITIONING.md](./POSITIONING.md) — what Aura is, what’s different, metric glossary, Google XYZ scaffolds (not resume bullets).
+**Positioning / XYZ worksheets:** [POSITIONING.md](./POSITIONING.md) — what Aura is, what’s different, **category matchup vs peer projects**, metric glossary, Google XYZ scaffolds (not resume bullets).
 
 ---
 

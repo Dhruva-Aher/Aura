@@ -17,7 +17,7 @@ Aura has **two environments**. Mixing them up causes confusing demos and unsafe 
 
 **Interview tip:** Only quote numbers you can point at ([BENCHMARKS.md](./docs/BENCHMARKS.md)). Use the live site for UI/SSE — not scale.
 
-More: [docs/INTERVIEW_GUIDE.md](./docs/INTERVIEW_GUIDE.md) · [docs/DECISIONS.md](./docs/DECISIONS.md) (full catalog) · [docs/POSITIONING.md](./docs/POSITIONING.md) (what’s different + metrics + XYZ scaffolds) · [docs/PROJECT_TRACE.md](./docs/PROJECT_TRACE.md)
+More: [docs/INTERVIEW_GUIDE.md](./docs/INTERVIEW_GUIDE.md) · [docs/DECISIONS.md](./docs/DECISIONS.md) (full catalog) · [docs/POSITIONING.md](./docs/POSITIONING.md) (differentiation, category matchup, metrics, XYZ scaffolds) · [docs/PROJECT_TRACE.md](./docs/PROJECT_TRACE.md)
 
 ## Project Motivation
 Aura provides a hybrid persistence model: PostgreSQL serves as the durable source of truth (guaranteeing no jobs are lost), while Redis serves as the high-throughput execution plane (providing fast polling, sorting, and backpressure).

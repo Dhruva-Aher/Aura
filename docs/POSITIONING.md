@@ -50,6 +50,73 @@ Interviewers have seen BullMQ wrappers. Lead with **owned semantics**, not “I 
 
 ---
 
+## 2b. Category matchup — where Aura pales, matches, and wins attention
+
+Recruiters and systems interviewers see many “distributed / backend” portfolio projects. Be honest about the ladder so you lead with a **real** differentiator instead of volume of buzzwords.
+
+### Same-category landscape (job queues / async workers / “systems” portfolios)
+
+| Tier | Typical project | What recruiters see in 5 seconds | How Aura compares |
+|------|-----------------|----------------------------------|-------------------|
+| **Thin wrapper** | Express + BullMQ/Celery + Redis + basic UI | “Used a queue library” | Aura is **deeper**: you own lease/fence/reconcile code paths they can’t open in `node_modules` |
+| **DB poller** | Postgres `SKIP LOCKED` workers, little Redis | Solid, familiar, sometimes *more* “prod-like” for simple shops | Aura trades simplicity for a **hybrid** story (hot path + durability + wipe recovery) |
+| **CRUD + Redis cache** | REST app, Redis as cache only | Not systems; easy to skip | Aura is clearly **systems**-coded if README leads with failure domains |
+| **Realtime / chat** | Socket.io, presence | Flashy demo, shallow durability story | Aura demo is quieter; **win on crash/recovery talk**, not animation |
+| **Mini K8s / Raft / DB engine** | Ambitious systems clones | Extremely strong if finished; often half-done | Aura is **narrower but shippable** — finished semantics beat unfinished distributed DB |
+| **Kafka / Flink / Temporal clone** | Streaming / workflows | Different category; looks more “infra” | Don’t claim equivalence; Aura is **job queue**, not log/workflow platform |
+| **Company prod queue** | Real traffic, on-call, SLOs in Datadog | Always beats portfolio on “impact” | Aura cannot win “production ownership”; win **design depth + evidence honesty** |
+
+### Where Aura **pales** (say this to yourself so you don’t overclaim)
+
+- No multi-region, partitions, or formal consensus (Raft/Paxos).
+- No company-scale traffic or on-call story — local screenshots ≠ prod.
+- Free public demo is intentionally weak; flashy wrappers sometimes look more “alive.”
+- Not Go/Rust kernel-adjacent; some “systems” mental models bias there.
+- No Jepsen-style consistency report; correctness is Vitest + design, not chaos-on-cluster.
+
+### Where Aura **matches** strong peer projects
+
+- Clear dual-store design and documented failure domains.
+- Automated tests for races (fences, locks, recovery), not only happy-path API tests.
+- Operator visibility (metrics, P95, SSE) instead of stdout-only.
+- Deployed URL for recruiter click-through (even if free-tier soft).
+
+### Where Aura can **catch attention** (unique differentiators)
+
+Use **one** headline differentiator in a README blurb or recruiter reply — not all at once.
+
+| Differentiator | Why it stops the scroll | Proof to keep one click away |
+|----------------|-------------------------|------------------------------|
+| **1. Built the primitives, didn’t wrap BullMQ** | Most peers configure a library; few can whiteboard lease → reap → fence → complete | `Worker.ts`, `lua.ts`, lease/crash docs |
+| **2. Redis wipe ≠ data loss** | Concrete failure story recruiters rarely hear from portfolios | Reconcile + 6k restore evidence in BENCHMARKS |
+| **3. Evidence-graded metrics** | “~300/min” with screenshot + formula beats vague “high throughput” | `assets/system-overview.png`, BENCHMARKS grades |
+| **4. Decision catalog** | Signals engineering maturity (why/alternatives/tradeoffs) | `docs/DECISIONS.md` |
+| **5. Honest two-environment story** | Rare: admits free demo ≠ load-test numbers | README Numbers table |
+
+**Recommended 1-line attention hook (spoken / README subtitle — not a resume bullet):**
+
+> From-scratch job queue with leases, idempotency fences, and Postgres-backed recovery after Redis loss — plus screenshot-backed throughput/P95, not a BullMQ wrapper.
+
+**Secondary hook if they care about ops:**
+
+> Operator console with the same P95/throughput formulas the API computes, and a written decision log for every major tradeoff.
+
+### Recruiter vs interviewer attention
+
+| Audience | What catches them | What loses them |
+|----------|-------------------|-----------------|
+| **Recruiter (non-eng)** | One concrete phrase: “from scratch queue + crash recovery + live dashboard”; short demo URL | Wall of Redis jargon; claiming free site does 20k jobs |
+| **SWE screener** | Lease/fence/reconcile depth; tests; metric definitions | “I used Redis and Postgres”; undefended numbers |
+| **Systems deep-dive** | Tradeoffs vs SKIP LOCKED / BullMQ; SLO thresholds; backpressure | Pretending it’s Temporal/Kafka |
+
+### How to present so you don’t pale
+
+1. Lead README with **hook #1 or #2**, then architecture — not deploy badges first.  
+2. Put **Numbers** table with two environments immediately under the hook.  
+3. Link **DECISIONS** + **POSITIONING** for interview prep; don’t hide the honesty layer.  
+4. In applications, one XYZ line from Scaffold A or B later — never free-tier generator rate.
+
+---
 ## 3. Metrics glossary (crystal clear)
 
 Every metric has: **definition**, **unit**, **window**, **where computed**, **what it does *not* mean**.

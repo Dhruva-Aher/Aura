@@ -1,0 +1,16 @@
+---
+description: Always document engineering decisions made in Aura chats
+alwaysApply: true
+---
+
+# Document every decision (Aura)
+
+When this chat (or any Aura session) makes a real engineering, product, deploy, metrics, or honesty choice:
+
+1. **Record it** in `docs/DECISIONS.md` (Context → Decision → Why → Alternatives → Tradeoffs → Evidence) under the right P-section, or add a new ID.
+2. If it changes a **number or claim**, update `docs/BENCHMARKS.md` and evidence grade; never leave resume-facing docs stale.
+3. If it changes **positioning / differentiation / metrics meaning**, update `docs/POSITIONING.md`.
+4. Prefer **PROPOSED ≠ DECIDED ≠ IMPLEMENTED ≠ VERIFIED** — do not invent benchmarks or rationale.
+5. Do this in the **same turn** as the decision when practical; do not wait to be asked again.
+
+User standing request: *always document all decisions taken in this chat.*

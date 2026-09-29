@@ -566,6 +566,22 @@ Documented in [crash-recovery.md](./crash-recovery.md): worker crash → reap; s
 | **Why** | User owns final resume wording; repo should make X/Y/Z and evidence obvious without fabricating achievement copy. |
 | **Evidence** | [POSITIONING.md](./POSITIONING.md). |
 
+### D-P14-06 — Category honesty + attention hooks (`DECIDED`)
+
+| | |
+|--|--|
+| **Decision** | Document where Aura pales vs wrappers, DB pollers, Kafka/Temporal, and unfinished mega-systems; lead with differentiators that survive scrutiny (owned primitives, Redis-wipe recovery, evidence-graded metrics, decision log). |
+| **Why** | Recruiters skip jargon walls; interviewers punish overclaim. Category matchup prevents false peer comparisons. |
+| **Evidence** | [POSITIONING.md §2b](./POSITIONING.md#2b-category-matchup--where-aura-pales-matches-and-wins-attention). |
+
+### D-P14-07 — Always document decisions from this chat (`DECIDED`)
+
+| | |
+|--|--|
+| **Decision** | Every engineering/product/deploy/metrics/honesty choice made while working on Aura in chat is written into `docs/DECISIONS.md` (and BENCHMARKS/POSITIONING when claims or positioning change) in the same workstream. Enforced via `.cursor/rules/document-decisions.mdc` (`alwaysApply`). |
+| **Why** | User standing order: decisions must stay crystal clear for interviews; chat context evaporates. |
+| **Evidence** | This entry; `.cursor/rules/document-decisions.mdc`. |
+
 ---
 
 ## Chronological timeline (from git)
