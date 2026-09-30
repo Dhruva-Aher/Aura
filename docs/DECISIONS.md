@@ -682,3 +682,16 @@ When you make a new non-trivial choice (protocol, storage, deploy, API contract,
 3. Link evidence (path or commit SHA).
 
 This file is the source of truth for “what did we decide and why?”
+
+---
+
+## P15 — Portfolio cross-verify (2026-09-30)
+
+### D-P15-01 — Keep claim sheet; no inflation (`DECIDED`)
+
+| | |
+|--|--|
+| **Context** | Multi-repo portfolio consistency pass re-counted tests and reviewed BENCHMARKS. |
+| **Decision** | Leave public numbers unchanged; record cross-verify in BENCHMARKS. |
+| **Evidence** | Worker test count 224; PersistenceRecovery 6k&lt;2s guard present. |
+| **Status** | DECIDED · VERIFIED |
