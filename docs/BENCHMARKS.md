@@ -105,3 +105,16 @@ These are **ops targets**, not resume scale claims.
 | 2026-09-29 | Tests = **224** (not “250”) | `vitest run` count this SHA |
 | 2026-09-29 | Split 20k “exercised/burst” vs “concurrent in-flight on screenshot” | Screenshot shows drained queue |
 | 2026-09-29 | Recovery: cite log **1843ms** + vitest 6k guard | Dual evidence |
+
+---
+
+## Cross-verify log — 2026-09-30
+
+| Claim | Result |
+|-------|--------|
+| **224** Vitest `it`/`test` in `apps/worker` | **PASS** — `rg` count = 224 |
+| Screenshot metrics 303.72 / 18,223 / 7.40–7.60 / DLQ 3,479 | **PASS** — still documented in `benchmark-runs/2026-console-dashboard.md` + assets (not re-pixel-read this pass; prior Grade A write-up stands) |
+| **6,000** restore **1,843 ms** | **PASS (dual)** — Grade C log citation + Grade A vitest `restores 6000 … under 2s` in `PersistenceRecovery.test.ts` |
+| Demo ≠ proof | **PASS** — README still separates local proof vs free demo |
+
+No claim changes required.
