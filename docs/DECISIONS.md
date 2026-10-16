@@ -419,6 +419,17 @@ Documented in [crash-recovery.md](./crash-recovery.md): worker crash → reap; s
 | **Tradeoffs** | Pulse and worker tables move every 15–20s rather than on every job. KPI numbers still follow the SSE stream as soon as they change. A first visit still waits for Render to wake. |
 | **Evidence** | `AuraContext.tsx`, `dashboardCache.ts`, `apiClient.ts`, `App.tsx`. |
 
+### D-P10-07 — Smooth the console without extra server load (`IMPLEMENTED`)
+
+| | |
+|--|--|
+| **Context** | The free Render process already builds a metrics snapshot on a timer. Adding more client polls, or waking the service on a cron, would spend the free-tier hours and pile requests onto one event loop. |
+| **Decision** | Keep the request rate the same or lower. Fetch overview first, then recent jobs, pulse, workers, and health on a short stagger (0.6s, 1.6s, 2.8s, 4.5s) so a cold wake is not five heavy queries at once. Health moves from every 30s to every 60s. Enqueue, replay, retry, and discard update the recent-job cache in memory and do not refetch overview. Each dashboard panel subscribes only to its own slice, and KPI digits use tabular figures with a short fade. |
+| **Why** | The hitch was the whole page redrawing, and the stall was a burst of heavy calls. Neither needs a busier server. |
+| **Alternatives** | Ping `/healthz` every 10 minutes so Render never sleeps. Rejected: that keeps the free instance awake all month. |
+| **Tradeoffs** | The first visit still waits for Render to boot. Pulse, workers, and health appear a few seconds after the KPI numbers. Health is a minute stale. Jobs and dead-letter pages ask for 25 rows at a time so a slow free-tier response can finish inside the 12s request limit; a timed-out page says it failed instead of showing 0. |
+| **Evidence** | `AuraContext.tsx`, `App.tsx`, `index.css`. Local console against the live API: overview KPIs rendered (completed 1,404), jobs list returned 1,740 in 151ms at 25 rows, dead letters returned 336 in 167ms. Not deployed. |
+
 ---
 
 ## P11. Testing & load

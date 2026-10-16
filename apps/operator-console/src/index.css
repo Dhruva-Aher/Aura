@@ -53,4 +53,23 @@
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: rgba(255,255,255,0.15);
   }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .kpi-tick {
+    animation: kpi-tick 160ms ease-out;
+  }
+}
+
+@keyframes kpi-tick {
+  from { opacity: 0.45; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kpi-tick {
+    animation: none;
+  }
 }

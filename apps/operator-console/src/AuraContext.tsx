@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
 import { metricsService, MetricsOverview, PulsePoint } from './services/metricsService';
 import { jobsService, Job, EnqueueJobPayload } from './services/jobsService';
@@ -17,6 +17,24 @@ const wakeRetry = {
 
 function pollAfterWake(steadyMs: number | false) {
   return (query: { state: { data: unknown } }) => (query.state.data == null ? 2000 : steadyMs);
+}
+
+function useDelayedEnabled(ready: boolean, delayMs: number) {
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    if (!ready || enabled) return;
+    const timer = setTimeout(() => setEnabled(true), delayMs);
+    return () => clearTimeout(timer);
+  }, [ready, delayMs, enabled]);
+  return enabled;
+}
+
+function rememberRecentJob(queryClient: ReturnType<typeof useQueryClient>, job: Job) {
+  queryClient.setQueryData<Job[]>(['recentJobs'], (old) => {
+    const recent = [job, ...(old ?? []).filter((item) => item.id !== job.id)].slice(0, 10);
+    writeDashboardCache({ recentJobs: recent, recentJobsAt: Date.now() });
+    return recent;
+  });
 }
 
 function sameMetrics(a: MetricsOverview, b: MetricsOverview) {
@@ -43,7 +61,12 @@ interface AuraState {
   retryJob: (id: string) => Promise<void>;
 }
 
-const AuraContext = createContext<AuraState | null>(null);
+const MetricsContext = createContext<MetricsOverview | undefined | null>(null);
+const PulseContext = createContext<PulsePoint[] | undefined | null>(null);
+const JobsContext = createContext<Job[] | undefined | null>(null);
+const WorkersContext = createContext<WorkerInfo[] | undefined | null>(null);
+const HealthContext = createContext<SystemHealth[] | undefined | null>(null);
+const ActionsContext = createContext<Pick<AuraState, 'enqueueJob' | 'replayDlq' | 'discardDlq' | 'retryJob'> | null>(null);
 
 export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const queryClient = useQueryClient();
@@ -62,6 +85,16 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refetchInterval: pollAfterWake(false),
   });
 
+  const metricsReady = metrics != null;
+  const jobsEnabled = useDelayedEnabled(metricsReady, 600);
+  const pulseEnabled = useDelayedEnabled(metricsReady, 1_600);
+  const workersEnabled = useDelayedEnabled(metricsReady, 2_800);
+  const healthEnabled = useDelayedEnabled(metricsReady, 4_500);
+  const steadyRetry = {
+    retry: 3,
+    retryDelay: (attempt: number) => Math.min(1000 * 2 ** attempt, 8_000),
+  } as const;
+
   const { data: pulse } = useQuery({
     queryKey: ['pulse'],
     queryFn: async () => {
@@ -71,7 +104,8 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
     },
     initialData: cachedDashboard.pulse as PulsePoint[] | undefined,
     initialDataUpdatedAt: cachedDashboard.pulseAt,
-    ...wakeRetry,
+    ...steadyRetry,
+    enabled: pulseEnabled,
     refetchInterval: pollAfterWake(15_000),
   });
 
@@ -84,7 +118,8 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
     },
     initialData: cachedDashboard.recentJobs as Job[] | undefined,
     initialDataUpdatedAt: cachedDashboard.recentJobsAt,
-    ...wakeRetry,
+    ...steadyRetry,
+    enabled: jobsEnabled,
     refetchInterval: pollAfterWake(false),
   });
 
@@ -97,31 +132,30 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
     },
     initialData: cachedDashboard.workers as WorkerInfo[] | undefined,
     initialDataUpdatedAt: cachedDashboard.workersAt,
-    ...wakeRetry,
+    ...steadyRetry,
+    enabled: workersEnabled,
     refetchInterval: pollAfterWake(20_000),
   });
 
   const { data: health } = useQuery({
     queryKey: ['health'],
     queryFn: systemService.getHealth,
-    ...wakeRetry,
-    refetchInterval: 30_000,
+    ...steadyRetry,
+    enabled: healthEnabled,
+    refetchInterval: 60_000,
   });
 
   const enqueueMutation = useMutation({
     mutationFn: jobsService.enqueue,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['recentJobs'] });
-      queryClient.invalidateQueries({ queryKey: ['metrics'] });
-      // Toast handled by EnqueueJobModal
+    onSuccess: (job) => {
+      rememberRecentJob(queryClient, job);
     },
   });
 
   const replayMutation = useMutation({
     mutationFn: jobsService.replayDlq,
     onSuccess: (job) => {
-      queryClient.invalidateQueries({ queryKey: ['recentJobs'] });
-      queryClient.invalidateQueries({ queryKey: ['metrics'] });
+      rememberRecentJob(queryClient, job);
       queryClient.invalidateQueries({ queryKey: ['dlqJobs'] });
       toast.success(`Job replayed: ${job.name}`);
     },
@@ -132,9 +166,8 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const discardMutation = useMutation({
     mutationFn: jobsService.discardDlq,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['recentJobs'] });
-      queryClient.invalidateQueries({ queryKey: ['metrics'] });
+    onSuccess: (job) => {
+      queryClient.setQueryData<Job[]>(['recentJobs'], (old) => (old ?? []).filter((item) => item.id !== job.id));
       queryClient.invalidateQueries({ queryKey: ['dlqJobs'] });
       toast.success('Job discarded');
     },
@@ -146,8 +179,7 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const retryMutation = useMutation({
     mutationFn: jobsService.retryJob,
     onSuccess: (job) => {
-      queryClient.invalidateQueries({ queryKey: ['recentJobs'] });
-      queryClient.invalidateQueries({ queryKey: ['metrics'] });
+      rememberRecentJob(queryClient, job);
       queryClient.invalidateQueries({ queryKey: ['dlqJobs'] });
       toast.success(`Retrying: ${job.name}`);
     },
@@ -226,23 +258,61 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [queryClient, streamEpoch]);
 
-  const value: AuraState = {
-    metrics,
-    pulse,
-    recentJobs,
-    workers,
-    health,
-    enqueueJob: async (data) => { await enqueueMutation.mutateAsync(data); },
-    replayDlq: async (id) => { await replayMutation.mutateAsync(id); },
-    discardDlq: async (id) => { await discardMutation.mutateAsync(id); },
-    retryJob: async (id) => { await retryMutation.mutateAsync(id); },
-  };
+  const actions = useMemo(() => ({
+    enqueueJob: async (data: EnqueueJobPayload) => { await enqueueMutation.mutateAsync(data); },
+    replayDlq: async (id: string) => { await replayMutation.mutateAsync(id); },
+    discardDlq: async (id: string) => { await discardMutation.mutateAsync(id); },
+    retryJob: async (id: string) => { await retryMutation.mutateAsync(id); },
+  }), [
+    enqueueMutation.mutateAsync,
+    replayMutation.mutateAsync,
+    discardMutation.mutateAsync,
+    retryMutation.mutateAsync,
+  ]);
 
-  return <AuraContext.Provider value={value}>{children}</AuraContext.Provider>;
+  return (
+    <MetricsContext.Provider value={metrics}>
+      <PulseContext.Provider value={pulse}>
+        <JobsContext.Provider value={recentJobs}>
+          <WorkersContext.Provider value={workers}>
+            <HealthContext.Provider value={health}>
+              <ActionsContext.Provider value={actions}>
+                {children}
+              </ActionsContext.Provider>
+            </HealthContext.Provider>
+          </WorkersContext.Provider>
+        </JobsContext.Provider>
+      </PulseContext.Provider>
+    </MetricsContext.Provider>
+  );
 };
 
-export const useAura = () => {
-  const ctx = useContext(AuraContext);
-  if (!ctx) throw new Error('useAura must be used within AuraProvider');
-  return ctx;
+function useSlice<T>(context: React.Context<T | undefined | null>, name: string): T | undefined {
+  const value = useContext(context);
+  if (value === null) throw new Error(`${name} must be used within AuraProvider`);
+  return value;
+}
+
+export const useMetrics = () => useSlice(MetricsContext, 'useMetrics');
+export const usePulse = () => useSlice(PulseContext, 'usePulse');
+export const useRecentJobs = () => useSlice(JobsContext, 'useRecentJobs');
+export const useWorkers = () => useSlice(WorkersContext, 'useWorkers');
+export const useHealth = () => useSlice(HealthContext, 'useHealth');
+
+export const useActions = () => {
+  const actions = useContext(ActionsContext);
+  if (!actions) throw new Error('useActions must be used within AuraProvider');
+  return actions;
+};
+
+export const useAura = (): AuraState => {
+  const actions = useActions();
+  return {
+    metrics: useMetrics(),
+    pulse: usePulse(),
+    recentJobs: useRecentJobs(),
+    workers: useWorkers(),
+    health: useHealth(),
+    ...actions,
+  };
 };

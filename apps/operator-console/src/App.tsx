@@ -12,7 +12,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, 
   ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Line, ComposedChart
 } from 'recharts';
-import { useAura } from './AuraContext';
+import { useActions, useHealth, useMetrics, usePulse, useRecentJobs, useWorkers } from './AuraContext';
 import type { PulsePoint } from './services/metricsService';
 import { EnqueueJobModal } from './components/modals/EnqueueJobModal';
 import { JobDrawer } from './components/modals/JobDrawer';
@@ -201,56 +201,65 @@ export default function App() {
 // ================= DASHBOARD VIEW =================
 
 function DashboardView() {
-  const { metrics, pulse, recentJobs, workers, health, replayDlq, discardDlq, retryJob } = useAura();
-  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
-  const navigate = useNavigate();
+  return (
+    <>
+      <DashboardIntro />
+      <KpiStrip />
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1.5fr_0.85fr]">
+        <PulsePanel />
+        <RecentJobsPanel />
+      </div>
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_1fr_1fr_1fr]">
+        <QueueDepthPanel />
+        <LatencyPanel />
+        <ThroughputPanel />
+        <HealthPanel />
+      </div>
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1.7fr_0.8fr_0.8fr]">
+        <WorkersPanel />
+        <QuickActionsPanel />
+        <EnqueuePanel />
+      </div>
+    </>
+  );
+}
 
-  const queueData = useMemo(() => metrics ? [
-    { name: "Pending", value: metrics.active.value, color: "#7c6df2" },
-    { name: "Processing", value: metrics.processing.value, color: "#4da3ff" },
-    { name: "Delayed", value: metrics.delayed.value, color: "#f5b94a" },
-    { name: "Completed", value: metrics.completed.value, color: "#5ed08c" },
-    { name: "Failed", value: metrics.failed.value, color: "#f45b7a" },
-  ] : [], [metrics]);
+const DashboardIntro = memo(function DashboardIntro() {
+  const metrics = useMetrics();
+  return (
+    <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-[2.1rem]">Good evening, Admin 👋</h1>
+        <p className="mt-1 text-sm text-white/55">
+          {metrics ? "Here's what's happening with your queues." : 'Connecting to the queue API…'}
+        </p>
+      </div>
+    </div>
+  );
+});
 
+const KpiStrip = memo(function KpiStrip() {
+  const metrics = useMetrics();
+  const pulse = usePulse();
   const spark = useMemo(() => ({
     scheduled: pulse?.slice(-10).map(p => ({ value: p.scheduled })) ?? [],
     completed: pulse?.slice(-10).map(p => ({ value: p.completed })) ?? [],
     failed: pulse?.slice(-10).map(p => ({ value: p.failed })) ?? [],
   }), [pulse]);
-
-  const throughputData = useMemo(
-    () => pulse?.map(p => ({ label: p.time, value: p.throughput ?? 0 })) ?? [],
-    [pulse],
-  );
-
-  const latencyData = useMemo(
-    () => pulse?.map(p => ({ time: p.time, value: Number(p.latency ?? 0) })) ?? [],
-    [pulse],
-  );
-
   return (
-    <>
-      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-[2.1rem]">Good evening, Admin 👋</h1>
-          <p className="mt-1 text-sm text-white/55">
-            {metrics ? "Here's what's happening with your queues." : 'Connecting to the queue API…'}
-          </p>
-        </div>
-        
-      </div>
-
-      {/* Stats row */}
       <div className="grid gap-4 xl:grid-cols-4">
         <StatCard title="Pending" value={metrics ? metrics.active.value : '—'} delta={metrics?.active?.change ? `${metrics.active.change > 0 ? "↗" : "↘"} ${Math.abs(metrics.active.change)}%` : ""} deltaTone={metrics?.active?.change && metrics.active.change > 0 ? "text-rose-300" : "text-emerald-300"} icon={FolderKanban} sparkColor="#7c6df2" sparkData={spark.scheduled} />
         <StatCard title="Processing" value={metrics ? metrics.processing.value : '—'} delta={metrics?.processing?.change ? `${metrics.processing.change > 0 ? "↗" : "↘"} ${Math.abs(metrics.processing.change)}%` : ""} deltaTone={metrics?.processing?.change && metrics.processing.change > 0 ? "text-rose-300" : "text-emerald-300"} icon={Zap} sparkColor="#4da3ff" sparkData={spark.completed} />
         <StatCard title="Completed" value={metrics ? metrics.completed.value : '—'} delta={metrics?.completed?.change ? `${metrics.completed.change >= 0 ? "↗" : "↘"} ${Math.abs(metrics.completed.change)}%` : ""} deltaTone={metrics?.completed?.change && metrics.completed.change >= 0 ? "text-emerald-300" : "text-rose-300"} icon={ShieldCheck} sparkColor="#5ed08c" sparkData={spark.completed} />
         <StatCard title="Dead Letters" value={metrics ? metrics.failed.value : '—'} delta={metrics?.failed?.change ? `${metrics.failed.change > 0 ? "↗" : "↘"} ${Math.abs(metrics.failed.change)}%` : ""} deltaTone={metrics?.failed?.change && metrics.failed.change > 0 ? "text-rose-300" : "text-emerald-300"} icon={TriangleAlert} sparkColor="#f45b7a" sparkData={spark.failed} />
       </div>
+  );
+});
 
-      {/* Middle grid */}
-      <div className="mt-4 grid gap-4 xl:grid-cols-[1.5fr_0.85fr]">
+const PulsePanel = memo(function PulsePanel() {
+  const pulse = usePulse();
+  const navigate = useNavigate();
+  return (
         <div className="rounded-2xl border border-white/10 bg-[#111528] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_30px_rgba(0,0,0,0.22)]">
           <div className="mb-3 flex items-center justify-between gap-3">
             <SectionTitle title="The Pulse Line" />
@@ -268,7 +277,16 @@ function DashboardView() {
             <LegendDot color="#7c6df2" label="Scheduled" />
           </div>
         </div>
+  );
+});
 
+const RecentJobsPanel = memo(function RecentJobsPanel() {
+  const recentJobs = useRecentJobs();
+  const { replayDlq, discardDlq, retryJob } = useActions();
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const navigate = useNavigate();
+  return (
+    <>
         <div className="rounded-2xl border border-white/10 bg-[#111528] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_30px_rgba(0,0,0,0.22)] flex flex-col">
           <SectionTitle title="Recent Jobs" action="View all" onAction={() => navigate('/jobs')} />
           <div className="space-y-2 flex-1 overflow-y-auto pr-2 custom-scrollbar">
@@ -287,10 +305,28 @@ function DashboardView() {
           </div>
           <button onClick={() => navigate('/jobs')} className="mt-3 w-full rounded-xl border border-white/10 bg-white/5 py-2.5 text-sm text-violet-200 hover:bg-white/10 transition">View all jobs →</button>
         </div>
-      </div>
+      <JobDrawer
+        job={selectedJob}
+        isOpen={!!selectedJob}
+        onClose={() => setSelectedJob(null)}
+        onReplay={async (id) => { await replayDlq(id); setSelectedJob(null); }}
+        onDiscard={async (id) => { await discardDlq(id); setSelectedJob(null); }}
+        onRetry={async (id) => { await retryJob(id); setSelectedJob(null); }}
+      />
+    </>
+  );
+});
 
-      {/* Lower cards */}
-      <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_1fr_1fr_1fr]">
+const QueueDepthPanel = memo(function QueueDepthPanel() {
+  const metrics = useMetrics();
+  const queueData = useMemo(() => metrics ? [
+    { name: "Pending", value: metrics.active.value, color: "#7c6df2" },
+    { name: "Processing", value: metrics.processing.value, color: "#4da3ff" },
+    { name: "Delayed", value: metrics.delayed.value, color: "#f5b94a" },
+    { name: "Completed", value: metrics.completed.value, color: "#5ed08c" },
+    { name: "Failed", value: metrics.failed.value, color: "#f45b7a" },
+  ] : [], [metrics]);
+  return (
         <div className="rounded-2xl border border-white/10 bg-[#111528] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_30px_rgba(0,0,0,0.22)]">
           <SectionTitle title="Queue Depth by State" />
           <div className="grid grid-cols-[1fr_auto] items-center gap-4">
@@ -323,14 +359,24 @@ function DashboardView() {
             </div>
           </div>
         </div>
+  );
+});
 
+const LatencyPanel = memo(function LatencyPanel() {
+  const metrics = useMetrics();
+  const pulse = usePulse();
+  const latencyData = useMemo(
+    () => pulse?.map(p => ({ time: p.time, value: Number(p.latency ?? 0) })) ?? [],
+    [pulse],
+  );
+  return (
         <div className="rounded-2xl border border-white/10 bg-[#111528] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_30px_rgba(0,0,0,0.22)]">
           <div className="mb-3 flex items-center justify-between">
             <SectionTitle title="Job Latency (Queue Wait Time)" />
             
           </div>
           <div className="mb-2 flex items-end gap-3">
-            <div className="text-4xl font-semibold">{metrics ? `${(metrics.p95Latency ?? 0).toFixed(2)}s` : '—'}</div>
+            <div className="text-4xl font-semibold tabular-nums">{metrics ? `${(metrics.p95Latency ?? 0).toFixed(2)}s` : '—'}</div>
             {metrics?.latencyChange !== undefined && (
               <div className={`rounded-full px-2.5 py-1 text-xs font-semibold ${metrics.latencyChange > 0 ? 'bg-rose-500/15 text-rose-300' : 'bg-emerald-500/15 text-emerald-300'}`}>
                 {metrics.latencyChange > 0 ? '↗' : '↘'} {Math.abs(metrics.latencyChange)}%
@@ -342,14 +388,24 @@ function DashboardView() {
             <LatencyChart data={latencyData} />
           </div>
         </div>
+  );
+});
 
+const ThroughputPanel = memo(function ThroughputPanel() {
+  const metrics = useMetrics();
+  const pulse = usePulse();
+  const throughputData = useMemo(
+    () => pulse?.map(p => ({ label: p.time, value: p.throughput ?? 0 })) ?? [],
+    [pulse],
+  );
+  return (
         <div className="rounded-2xl border border-white/10 bg-[#111528] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_30px_rgba(0,0,0,0.22)]">
           <div className="mb-3 flex items-center justify-between">
             <SectionTitle title="Throughput" />
             
           </div>
           <div className="mb-2 flex items-end gap-3">
-            <div className="text-4xl font-semibold">{metrics ? (metrics.throughput ?? 0).toLocaleString() : '—'}</div>
+            <div className="text-4xl font-semibold tabular-nums">{metrics ? (metrics.throughput ?? 0).toLocaleString() : '—'}</div>
             {metrics?.throughputChange !== undefined && (
               <div className={`rounded-full px-2.5 py-1 text-xs font-semibold ${metrics.throughputChange >= 0 ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/15 text-rose-300'}`}>
                 {metrics.throughputChange >= 0 ? '↗' : '↘'} {Math.abs(metrics.throughputChange)}%
@@ -361,7 +417,13 @@ function DashboardView() {
             <ThroughputChart data={throughputData} />
           </div>
         </div>
+  );
+});
 
+const HealthPanel = memo(function HealthPanel() {
+  const health = useHealth();
+  const navigate = useNavigate();
+  return (
         <div className="rounded-2xl border border-white/10 bg-[#111528] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_30px_rgba(0,0,0,0.22)]">
           <div className="mb-3 flex items-center justify-between">
             <SectionTitle title="System Health" />
@@ -380,14 +442,17 @@ function DashboardView() {
           </div>
           <button onClick={() => navigate('/health')} className="mt-3 w-full rounded-xl border border-white/10 bg-white/5 py-2.5 text-sm text-violet-200 hover:bg-white/10 transition">View all health →</button>
         </div>
-      </div>
+  );
+});
 
-      {/* Bottom section */}
-      <div className="mt-4 grid gap-4 xl:grid-cols-[1.7fr_0.8fr_0.8fr]">
+const WorkersPanel = memo(function WorkersPanel() {
+  const workers = useWorkers();
+  const online = workers?.filter(w => w.status === 'ONLINE').length ?? 0;
+  return (
         <div className="rounded-2xl border border-white/10 bg-[#111528] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_30px_rgba(0,0,0,0.22)]">
           <div className="mb-3 flex items-center justify-between">
             <SectionTitle title="Active Workers" />
-            <div className="text-sm text-emerald-300">{workers?.filter(w => w.status === 'ONLINE').length ?? 0} online</div>
+            <div className="text-sm text-emerald-300">{online} online</div>
           </div>
           <div className="overflow-hidden rounded-2xl border border-white/10">
             <table className="w-full text-left text-sm whitespace-nowrap">
@@ -416,7 +481,12 @@ function DashboardView() {
             </table>
           </div>
         </div>
+  );
+});
 
+const QuickActionsPanel = memo(function QuickActionsPanel() {
+  const navigate = useNavigate();
+  return (
         <div className="rounded-2xl border border-white/10 bg-[#111528] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_30px_rgba(0,0,0,0.22)]">
           <SectionTitle title="Quick Actions" />
           <div className="space-y-2">
@@ -436,7 +506,11 @@ function DashboardView() {
             ))}
           </div>
         </div>
+  );
+});
 
+const EnqueuePanel = memo(function EnqueuePanel() {
+  return (
         <div className="rounded-2xl border border-white/10 bg-[#111528] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_30px_rgba(0,0,0,0.22)] flex flex-col">
           <SectionTitle title="Enqueue Job" />
           <button onClick={() => document.dispatchEvent(new Event('openEnqueue'))} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-950/30 hover:brightness-110 active:scale-95 transition">
@@ -446,24 +520,13 @@ function DashboardView() {
             Add a new task, assign a queue, and watch it flow through the system in real time.
           </div>
         </div>
-      </div>
-
-      <JobDrawer 
-        job={selectedJob} 
-        isOpen={!!selectedJob} 
-        onClose={() => setSelectedJob(null)} 
-        onReplay={async (id) => { await replayDlq(id); setSelectedJob(null); }}
-        onDiscard={async (id) => { await discardDlq(id); setSelectedJob(null); }}
-        onRetry={retryJob ? async (id) => { await retryJob(id); setSelectedJob(null); } : undefined}
-      />
-    </>
   );
-}
+});
 
 // ================= ADDITIONAL VIEWS =================
 
 function HealthView() {
-  const { health } = useAura();
+  const health = useHealth();
   return (
     <div className="rounded-2xl border border-white/10 bg-[#111528] p-6 shadow-xl max-w-4xl mx-auto">
       <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-3">
@@ -545,7 +608,7 @@ function SchedulesView() {
 }
 
 function JobsView({ search }: { search: string }) {
-  const { replayDlq, discardDlq, retryJob } = useAura();
+  const { replayDlq, discardDlq, retryJob } = useActions();
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
   const jobsQuery = useInfiniteQuery({
@@ -553,7 +616,7 @@ function JobsView({ search }: { search: string }) {
     initialPageParam: null as { cursorCreatedAt: string; cursorId: string } | null,
     queryFn: ({ pageParam }) => jobsService.list({
       search: search || undefined,
-      limit: 100,
+      limit: 25,
       cursorCreatedAt: pageParam?.cursorCreatedAt,
       cursorId: pageParam?.cursorId,
     }),
@@ -566,7 +629,7 @@ function JobsView({ search }: { search: string }) {
     <div className="rounded-2xl border border-white/10 bg-[#111528] p-6 shadow-xl">
       <h2 className="text-xl font-semibold text-white mb-6">
         All Jobs
-        <span className="text-sm text-white/50 ml-2">{total.toLocaleString()} total</span>
+        <span className="text-sm text-white/50 ml-2">{jobsQuery.isError ? 'unavailable' : jobsQuery.data ? `${total.toLocaleString()} total` : '…'}</span>
         {search && <span className="text-sm text-white/50 ml-2">Filtering by "{search}"</span>}
       </h2>
       <div className="space-y-2">
@@ -581,7 +644,13 @@ function JobsView({ search }: { search: string }) {
             </div>
             <StatusPill status={job.status} />
           </div>
-        )) : <div className="text-center py-10 text-white/40">{jobsQuery.isLoading ? 'Loading jobs...' : 'No jobs found'}</div>}
+        )) : (
+          <div className="text-center py-10 text-white/40">
+            {jobsQuery.isError ? (
+              <button onClick={() => jobsQuery.refetch()} className="text-violet-200 hover:text-white">The queue API didn't answer. Try again.</button>
+            ) : jobsQuery.isPending ? 'Loading jobs...' : 'No jobs found'}
+          </div>
+        )}
       </div>
       {jobsQuery.hasNextPage && (
         <div className="mt-4 flex justify-center">
@@ -607,13 +676,13 @@ function JobsView({ search }: { search: string }) {
 }
 
 function DlqView() {
-  const { replayDlq, discardDlq, retryJob } = useAura();
+  const { replayDlq, discardDlq, retryJob } = useActions();
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const dlqQuery = useInfiniteQuery({
     queryKey: ['dlqJobs'],
     initialPageParam: null as { cursorCreatedAt: string; cursorId: string } | null,
     queryFn: ({ pageParam }) => jobsService.getDlq({
-      limit: 100,
+      limit: 25,
       cursorCreatedAt: pageParam?.cursorCreatedAt,
       cursorId: pageParam?.cursorId,
     }),
@@ -629,10 +698,16 @@ function DlqView() {
           <TriangleAlert size={20} />
         </div>
         <h2 className="text-xl font-semibold text-white">Dead Letter Queue</h2>
-        <span className="text-sm text-white/50 ml-2">{total.toLocaleString()} total</span>
+        <span className="text-sm text-white/50 ml-2">{dlqQuery.isError ? 'unavailable' : dlqQuery.data ? `${total.toLocaleString()} total` : '…'}</span>
       </div>
       
-      {dlqJobs?.length === 0 ? (
+      {dlqQuery.isPending ? (
+        <div className="text-center py-10 text-white/40">Loading dead letters...</div>
+      ) : dlqQuery.isError ? (
+        <div className="text-center py-10 text-white/40">
+          <button onClick={() => dlqQuery.refetch()} className="text-violet-200 hover:text-white">The queue API didn't answer. Try again.</button>
+        </div>
+      ) : dlqJobs.length === 0 ? (
         <div className="text-center py-20 text-white/50 flex flex-col items-center">
           <div className="h-16 w-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
             <Database size={24} className="text-white/30" />
@@ -677,7 +752,7 @@ function DlqView() {
 }
 
 function WorkersView() {
-  const { workers } = useAura();
+  const workers = useWorkers();
 
   return (
     <div className="rounded-2xl border border-white/10 bg-[#111528] overflow-hidden shadow-xl">
@@ -748,7 +823,7 @@ function LegendDot({ color, label }: { color: string; label: string }) {
 }
 
 function EnqueueJobModalWrapper({ isEnqueueOpen, setIsEnqueueOpen }: any) {
-  const { enqueueJob } = useAura();
+  const { enqueueJob } = useActions();
   
   React.useEffect(() => {
     const handleOpen = () => setIsEnqueueOpen(true);
@@ -815,7 +890,7 @@ const StatCard = memo(function StatCard({ title, value, delta, deltaTone, icon: 
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="text-sm text-white/60">{title}</div>
-          <div className="mt-2 text-4xl font-semibold tracking-tight text-white">{value.toLocaleString()}</div>
+          <div className="mt-2 text-4xl font-semibold tracking-tight text-white tabular-nums kpi-tick" key={String(value)}>{value.toLocaleString()}</div>
         </div>
         <div className="grid h-12 w-12 place-items-center rounded-full bg-white/5 text-white/80 ring-1 ring-white/10">
           <Icon className="h-5 w-5" />
