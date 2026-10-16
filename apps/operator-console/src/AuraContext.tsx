@@ -4,7 +4,17 @@ import { metricsService, MetricsOverview, PulsePoint } from './services/metricsS
 import { jobsService, Job, EnqueueJobPayload } from './services/jobsService';
 import { systemService, WorkerInfo, SystemHealth } from './services/systemService';
 import { API_BASE_URL } from './services/apiClient';
+import { readDashboardCache, writeDashboardCache } from './services/dashboardCache';
 import toast from 'react-hot-toast';
+
+const cachedDashboard = readDashboardCache();
+
+/** Keep retrying while Render is waking. Once data exists, SSE owns live updates. */
+const wakeUntilData = {
+  retry: 6,
+  retryDelay: (attempt: number) => Math.min(1000 * 2 ** attempt, 8000),
+  refetchInterval: (query: { state: { data: unknown } }) => (query.state.data == null ? 2000 : false),
+} as const;
 
 interface AuraState {
   metrics: MetricsOverview | undefined;
@@ -25,22 +35,50 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const { data: metrics } = useQuery({
     queryKey: ['metrics'],
-    queryFn: metricsService.getOverview,
+    queryFn: async () => {
+      const data = await metricsService.getOverview();
+      writeDashboardCache({ metrics: data, metricsAt: Date.now() });
+      return data;
+    },
+    initialData: cachedDashboard.metrics as MetricsOverview | undefined,
+    initialDataUpdatedAt: cachedDashboard.metricsAt,
+    ...wakeUntilData,
   });
 
   const { data: pulse } = useQuery({
     queryKey: ['pulse'],
-    queryFn: metricsService.getPulse,
+    queryFn: async () => {
+      const data = await metricsService.getPulse();
+      writeDashboardCache({ pulse: data, pulseAt: Date.now() });
+      return data;
+    },
+    initialData: cachedDashboard.pulse as PulsePoint[] | undefined,
+    initialDataUpdatedAt: cachedDashboard.pulseAt,
+    ...wakeUntilData,
   });
 
   const { data: recentJobs } = useQuery({
     queryKey: ['recentJobs'],
-    queryFn: () => jobsService.getRecent(),
+    queryFn: async () => {
+      const data = await jobsService.getRecent();
+      writeDashboardCache({ recentJobs: data, recentJobsAt: Date.now() });
+      return data;
+    },
+    initialData: cachedDashboard.recentJobs as Job[] | undefined,
+    initialDataUpdatedAt: cachedDashboard.recentJobsAt,
+    ...wakeUntilData,
   });
 
   const { data: workers } = useQuery({
     queryKey: ['workers'],
-    queryFn: systemService.getWorkers,
+    queryFn: async () => {
+      const data = await systemService.getWorkers();
+      writeDashboardCache({ workers: data, workersAt: Date.now() });
+      return data;
+    },
+    initialData: cachedDashboard.workers as WorkerInfo[] | undefined,
+    initialDataUpdatedAt: cachedDashboard.workersAt,
+    ...wakeUntilData,
   });
 
   const { data: health } = useQuery({
@@ -122,6 +160,7 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const data = JSON.parse(e.data);
         queryClient.setQueryData(['metrics'], data as MetricsOverview);
+        writeDashboardCache({ metrics: data, metricsAt: Date.now() });
         // Debounce extra HTTP fetches — free-tier can't keep up with invalidate storms.
         schedulePulseRefresh();
         scheduleWorkersRefresh();

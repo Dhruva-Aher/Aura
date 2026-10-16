@@ -397,6 +397,17 @@ Documented in [crash-recovery.md](./crash-recovery.md): worker crash → reap; s
 | **Why** | Avoid hardcoding dead Railway URL; avoid mixed-content issues. |
 | **Evidence** | `apiClient.ts`, `vercel.json` rewrite to `aura-api-184s.onrender.com`. |
 
+### D-P10-05 — Do not paint KPI zeros while the API is waking (`DECIDED`)
+
+| | |
+|--|--|
+| **Context** | Production project `auralive` (deployment `dpl_CAaNsTJqvFwy511V1LvH2VLvZv59`, commit `770346a`) bakes `VITE_API_URL` into the console bundle as `https://aura-api-184s.onrender.com`. The live file `assets/index-Bl6UOi93.js` has that host and does not contain `/api`, so the browser talks to Render directly and ignores the Vercel rewrite. Render free tier sleeps after inactivity. `StatCard` used `metrics?.active.value ?? 0` and metrics/pulse/jobs/workers had no refetch, so a cold wake or a failed first request left the dashboard at 0 and empty charts until SSE happened to connect. |
+| **Decision** | Keep the last dashboard payloads in `sessionStorage` and use them as React Query `initialData`. While a query has no data, retry with backoff and poll every 2s. Show an em dash and “Connecting to the queue API…”, not a fake zero. After the first success, SSE remains the live path. |
+| **Why** | Same-origin `/api` curls were ~0.3–0.5s when Render was already warm, which hid the cold-start path the browser actually uses. |
+| **Alternatives** | Remove `VITE_API_URL` so the client uses `/api`. Rejected as the sole fix: the rewrite still waits on the same sleeping Render process, and direct calls were slightly faster when warm (about 310ms vs 470ms). |
+| **Tradeoffs** | A first visit with an empty cache still waits for Render to wake. Reloads show the previous counts immediately, which can be stale until the refetch or SSE tick. |
+| **Evidence** | Vercel env names `VITE_API_URL` and `BACKEND_URL` (values not recorded). `dashboardCache.ts`, `AuraContext.tsx`. Runtime log API returned 403, so proxy error lines were not inspected. |
+
 ---
 
 ## P11. Testing & load

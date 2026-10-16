@@ -221,17 +221,19 @@ function DashboardView() {
       <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-[2.1rem]">Good evening, Admin 👋</h1>
-          <p className="mt-1 text-sm text-white/55">Here's what's happening with your queues.</p>
+          <p className="mt-1 text-sm text-white/55">
+            {metrics ? "Here's what's happening with your queues." : 'Connecting to the queue API…'}
+          </p>
         </div>
         
       </div>
 
       {/* Stats row */}
       <div className="grid gap-4 xl:grid-cols-4">
-        <StatCard title="Pending" value={metrics?.active.value ?? 0} delta={metrics?.active?.change ? `${metrics.active.change > 0 ? "↗" : "↘"} ${Math.abs(metrics.active.change)}%` : ""} deltaTone={metrics?.active?.change && metrics.active.change > 0 ? "text-rose-300" : "text-emerald-300"} icon={FolderKanban} sparkColor="#7c6df2" sparkData={pulse?.slice(-10).map(p => ({value: p.scheduled})) ?? []} />
-        <StatCard title="Processing" value={metrics?.processing.value ?? 0} delta={metrics?.processing?.change ? `${metrics.processing.change > 0 ? "↗" : "↘"} ${Math.abs(metrics.processing.change)}%` : ""} deltaTone={metrics?.processing?.change && metrics.processing.change > 0 ? "text-rose-300" : "text-emerald-300"} icon={Zap} sparkColor="#4da3ff" sparkData={pulse?.slice(-10).map(p => ({value: p.completed})) ?? []} />
-        <StatCard title="Completed" value={metrics?.completed.value ?? 0} delta={metrics?.completed?.change ? `${metrics.completed.change >= 0 ? "↗" : "↘"} ${Math.abs(metrics.completed.change)}%` : ""} deltaTone={metrics?.completed?.change && metrics.completed.change >= 0 ? "text-emerald-300" : "text-rose-300"} icon={ShieldCheck} sparkColor="#5ed08c" sparkData={pulse?.slice(-10).map(p => ({value: p.completed})) ?? []} />
-        <StatCard title="Dead Letters" value={metrics?.failed.value ?? 0} delta={metrics?.failed?.change ? `${metrics.failed.change > 0 ? "↗" : "↘"} ${Math.abs(metrics.failed.change)}%` : ""} deltaTone={metrics?.failed?.change && metrics.failed.change > 0 ? "text-rose-300" : "text-emerald-300"} icon={TriangleAlert} sparkColor="#f45b7a" sparkData={pulse?.slice(-10).map(p => ({value: p.failed})) ?? []} />
+        <StatCard title="Pending" value={metrics ? metrics.active.value : '—'} delta={metrics?.active?.change ? `${metrics.active.change > 0 ? "↗" : "↘"} ${Math.abs(metrics.active.change)}%` : ""} deltaTone={metrics?.active?.change && metrics.active.change > 0 ? "text-rose-300" : "text-emerald-300"} icon={FolderKanban} sparkColor="#7c6df2" sparkData={pulse?.slice(-10).map(p => ({value: p.scheduled})) ?? []} />
+        <StatCard title="Processing" value={metrics ? metrics.processing.value : '—'} delta={metrics?.processing?.change ? `${metrics.processing.change > 0 ? "↗" : "↘"} ${Math.abs(metrics.processing.change)}%` : ""} deltaTone={metrics?.processing?.change && metrics.processing.change > 0 ? "text-rose-300" : "text-emerald-300"} icon={Zap} sparkColor="#4da3ff" sparkData={pulse?.slice(-10).map(p => ({value: p.completed})) ?? []} />
+        <StatCard title="Completed" value={metrics ? metrics.completed.value : '—'} delta={metrics?.completed?.change ? `${metrics.completed.change >= 0 ? "↗" : "↘"} ${Math.abs(metrics.completed.change)}%` : ""} deltaTone={metrics?.completed?.change && metrics.completed.change >= 0 ? "text-emerald-300" : "text-rose-300"} icon={ShieldCheck} sparkColor="#5ed08c" sparkData={pulse?.slice(-10).map(p => ({value: p.completed})) ?? []} />
+        <StatCard title="Dead Letters" value={metrics ? metrics.failed.value : '—'} delta={metrics?.failed?.change ? `${metrics.failed.change > 0 ? "↗" : "↘"} ${Math.abs(metrics.failed.change)}%` : ""} deltaTone={metrics?.failed?.change && metrics.failed.change > 0 ? "text-rose-300" : "text-emerald-300"} icon={TriangleAlert} sparkColor="#f45b7a" sparkData={pulse?.slice(-10).map(p => ({value: p.failed})) ?? []} />
       </div>
 
       {/* Middle grid */}
@@ -333,7 +335,7 @@ function DashboardView() {
             
           </div>
           <div className="mb-2 flex items-end gap-3">
-            <div className="text-4xl font-semibold">{metrics?.p95Latency ? metrics.p95Latency.toFixed(2) : '0.00'}s</div>
+            <div className="text-4xl font-semibold">{metrics ? `${(metrics.p95Latency ?? 0).toFixed(2)}s` : '—'}</div>
             {metrics?.latencyChange !== undefined && (
               <div className={`rounded-full px-2.5 py-1 text-xs font-semibold ${metrics.latencyChange > 0 ? 'bg-rose-500/15 text-rose-300' : 'bg-emerald-500/15 text-emerald-300'}`}>
                 {metrics.latencyChange > 0 ? '↗' : '↘'} {Math.abs(metrics.latencyChange)}%
@@ -360,7 +362,7 @@ function DashboardView() {
             
           </div>
           <div className="mb-2 flex items-end gap-3">
-            <div className="text-4xl font-semibold">{metrics?.throughput ? metrics.throughput.toLocaleString() : '0'}</div>
+            <div className="text-4xl font-semibold">{metrics ? (metrics.throughput ?? 0).toLocaleString() : '—'}</div>
             {metrics?.throughputChange !== undefined && (
               <div className={`rounded-full px-2.5 py-1 text-xs font-semibold ${metrics.throughputChange >= 0 ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/15 text-rose-300'}`}>
                 {metrics.throughputChange >= 0 ? '↗' : '↘'} {Math.abs(metrics.throughputChange)}%
