@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
 import { metricsService, MetricsOverview, PulsePoint } from './services/metricsService';
 import { jobsService, Job, EnqueueJobPayload } from './services/jobsService';
@@ -9,12 +9,27 @@ import toast from 'react-hot-toast';
 
 const cachedDashboard = readDashboardCache();
 
-/** Keep retrying while Render is waking. Once data exists, SSE owns live updates. */
-const wakeUntilData = {
-  retry: 6,
+/** Retry while Render is waking. After the first payload, only the steady interval runs. */
+const wakeRetry = {
+  retry: 8,
   retryDelay: (attempt: number) => Math.min(1000 * 2 ** attempt, 8000),
-  refetchInterval: (query: { state: { data: unknown } }) => (query.state.data == null ? 2000 : false),
 } as const;
+
+function pollAfterWake(steadyMs: number | false) {
+  return (query: { state: { data: unknown } }) => (query.state.data == null ? 2000 : steadyMs);
+}
+
+function sameMetrics(a: MetricsOverview, b: MetricsOverview) {
+  return a.active?.value === b.active?.value
+    && a.processing?.value === b.processing?.value
+    && a.completed?.value === b.completed?.value
+    && a.failed?.value === b.failed?.value
+    && a.delayed?.value === b.delayed?.value
+    && a.p95Latency === b.p95Latency
+    && a.throughput === b.throughput
+    && a.latencyChange === b.latencyChange
+    && a.throughputChange === b.throughputChange;
+}
 
 interface AuraState {
   metrics: MetricsOverview | undefined;
@@ -32,6 +47,7 @@ const AuraContext = createContext<AuraState | null>(null);
 
 export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const queryClient = useQueryClient();
+  const [streamEpoch, setStreamEpoch] = useState(0);
 
   const { data: metrics } = useQuery({
     queryKey: ['metrics'],
@@ -42,7 +58,8 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
     },
     initialData: cachedDashboard.metrics as MetricsOverview | undefined,
     initialDataUpdatedAt: cachedDashboard.metricsAt,
-    ...wakeUntilData,
+    ...wakeRetry,
+    refetchInterval: pollAfterWake(false),
   });
 
   const { data: pulse } = useQuery({
@@ -54,7 +71,8 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
     },
     initialData: cachedDashboard.pulse as PulsePoint[] | undefined,
     initialDataUpdatedAt: cachedDashboard.pulseAt,
-    ...wakeUntilData,
+    ...wakeRetry,
+    refetchInterval: pollAfterWake(15_000),
   });
 
   const { data: recentJobs } = useQuery({
@@ -66,7 +84,8 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
     },
     initialData: cachedDashboard.recentJobs as Job[] | undefined,
     initialDataUpdatedAt: cachedDashboard.recentJobsAt,
-    ...wakeUntilData,
+    ...wakeRetry,
+    refetchInterval: pollAfterWake(false),
   });
 
   const { data: workers } = useQuery({
@@ -78,13 +97,15 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
     },
     initialData: cachedDashboard.workers as WorkerInfo[] | undefined,
     initialDataUpdatedAt: cachedDashboard.workersAt,
-    ...wakeUntilData,
+    ...wakeRetry,
+    refetchInterval: pollAfterWake(20_000),
   });
 
   const { data: health } = useQuery({
     queryKey: ['health'],
     queryFn: systemService.getHealth,
-    refetchInterval: 10000,
+    ...wakeRetry,
+    refetchInterval: 30_000,
   });
 
   const enqueueMutation = useMutation({
@@ -137,59 +158,73 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const evtSource = new EventSource(`${API_BASE_URL}/events/stream`);
-    let pulseTimer: ReturnType<typeof setTimeout> | null = null;
-    let workersTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastEventAt = Date.now();
+    const pendingJobs = new Map<string, Job>();
+    let jobTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const schedulePulseRefresh = () => {
-      if (pulseTimer) return;
-      pulseTimer = setTimeout(() => {
-        pulseTimer = null;
-        queryClient.invalidateQueries({ queryKey: ['pulse'] });
-      }, 2500);
+    const mark = () => {
+      lastEventAt = Date.now();
     };
 
-    const scheduleWorkersRefresh = () => {
-      if (workersTimer) return;
-      workersTimer = setTimeout(() => {
-        workersTimer = null;
-        queryClient.invalidateQueries({ queryKey: ['workers'] });
-      }, 5000);
+    const flushJobs = () => {
+      jobTimer = null;
+      if (!pendingJobs.size) return;
+      const batch = [...pendingJobs.values()];
+      pendingJobs.clear();
+      queryClient.setQueryData<Job[]>(['recentJobs'], (old) => {
+        let next = old ?? [];
+        for (const job of batch) {
+          next = [job, ...next.filter((item) => item.id !== job.id)];
+        }
+        const recent = next.slice(0, 10);
+        writeDashboardCache({ recentJobs: recent, recentJobsAt: Date.now() });
+        return recent;
+      });
     };
 
-    evtSource.addEventListener('metrics_update', (e) => {
+    const onMetrics = (event: Event) => {
+      mark();
       try {
-        const data = JSON.parse(e.data);
-        queryClient.setQueryData(['metrics'], data as MetricsOverview);
+        const data = JSON.parse((event as MessageEvent).data) as MetricsOverview;
+        if (!data?.active || typeof data.active.value !== 'number') return;
+        const prev = queryClient.getQueryData<MetricsOverview>(['metrics']);
+        if (prev && sameMetrics(prev, data)) return;
+        queryClient.setQueryData(['metrics'], data);
         writeDashboardCache({ metrics: data, metricsAt: Date.now() });
-        // Debounce extra HTTP fetches — free-tier can't keep up with invalidate storms.
-        schedulePulseRefresh();
-        scheduleWorkersRefresh();
-      } catch {}
-    });
-
-    evtSource.addEventListener('job_update', (e) => {
-      try {
-        const job = JSON.parse(e.data);
-        if (!job?.id) return;
-        queryClient.setQueryData<Job[]>(['recentJobs'], (old) => {
-          if (!old) return [job];
-          return [job, ...old.filter(j => j.id !== job.id)].slice(0, 10);
-        });
-        // Metrics already stream on an interval — don't refetch on every job.
-        schedulePulseRefresh();
-      } catch {}
-    });
-
-    evtSource.onerror = () => {
-      // SSE disconnect is non-fatal — React Query keeps last known data.
+      } catch {
+        // Ignore a malformed metrics frame.
+      }
     };
+
+    const onJob = (event: Event) => {
+      mark();
+      try {
+        const job = JSON.parse((event as MessageEvent).data) as Job;
+        if (!job?.id) return;
+        pendingJobs.set(job.id, job);
+        if (jobTimer) return;
+        jobTimer = setTimeout(flushJobs, 300);
+      } catch {
+        // Ignore a malformed job frame.
+      }
+    };
+
+    evtSource.addEventListener('metrics_update', onMetrics);
+    evtSource.addEventListener('job_update', onJob);
+
+    const watch = setInterval(() => {
+      if (evtSource.readyState === EventSource.OPEN && Date.now() - lastEventAt > 20_000) {
+        evtSource.close();
+        setStreamEpoch((n) => n + 1);
+      }
+    }, 5_000);
 
     return () => {
-      if (pulseTimer) clearTimeout(pulseTimer);
-      if (workersTimer) clearTimeout(workersTimer);
+      clearInterval(watch);
+      if (jobTimer) clearTimeout(jobTimer);
       evtSource.close();
     };
-  }, [queryClient]);
+  }, [queryClient, streamEpoch]);
 
   const value: AuraState = {
     metrics,

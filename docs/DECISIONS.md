@@ -408,6 +408,17 @@ Documented in [crash-recovery.md](./crash-recovery.md): worker crash → reap; s
 | **Tradeoffs** | A first visit with an empty cache still waits for Render to wake. Reloads show the previous counts immediately, which can be stale until the refetch or SSE tick. |
 | **Evidence** | Vercel env names `VITE_API_URL` and `BACKEND_URL` (values not recorded). `dashboardCache.ts`, `AuraContext.tsx`. Runtime log API returned 403, so proxy error lines were not inspected. |
 
+### D-P10-06 — Smooth the console by stopping refresh storms (`DECIDED`)
+
+| | |
+|--|--|
+| **Context** | After the first payload, every SSE metrics frame also invalidated pulse (2.5s) and workers (5s), and every job frame invalidated pulse again. Those HTTP calls hit the same single Render process that is already building the metrics snapshot. The dashboard then redrew every Recharts series, including a dot per pulse point, and wrote `sessionStorage` on the same tick. The page hitched, then stalled when a request sat on a busy event loop. |
+| **Decision** | Apply an SSE metrics frame only when the visible counts changed. Batch job list updates for 300ms. Poll pulse every 15s and workers every 20s instead of on every event. Health polls every 30s. Debounce the session cache by 1.5s. Abort a hung HTTP call after 12s. Reopen an SSE stream that stays open but silent for 20s. Memoize the pulse, latency, and throughput charts and draw them without per-point dots. |
+| **Why** | The stall was extra load on the free-tier API plus a full chart redraw, not a missing number. |
+| **Alternatives** | Slow the server metrics broadcast. Not done here: that needs a Render deploy, and the client was the side adding the overlapping fetches. |
+| **Tradeoffs** | Pulse and worker tables move every 15–20s rather than on every job. KPI numbers still follow the SSE stream as soon as they change. A first visit still waits for Render to wake. |
+| **Evidence** | `AuraContext.tsx`, `dashboardCache.ts`, `apiClient.ts`, `App.tsx`. |
+
 ---
 
 ## P11. Testing & load

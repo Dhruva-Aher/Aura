@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, memo } from 'react';
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import { 
   Zap, 
@@ -13,6 +13,7 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Line, ComposedChart
 } from 'recharts';
 import { useAura } from './AuraContext';
+import type { PulsePoint } from './services/metricsService';
 import { EnqueueJobModal } from './components/modals/EnqueueJobModal';
 import { JobDrawer } from './components/modals/JobDrawer';
 import { Job, jobsService } from './services/jobsService';
@@ -204,17 +205,29 @@ function DashboardView() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const navigate = useNavigate();
 
-  const queueData = metrics ? [
+  const queueData = useMemo(() => metrics ? [
     { name: "Pending", value: metrics.active.value, color: "#7c6df2" },
     { name: "Processing", value: metrics.processing.value, color: "#4da3ff" },
     { name: "Delayed", value: metrics.delayed.value, color: "#f5b94a" },
     { name: "Completed", value: metrics.completed.value, color: "#5ed08c" },
     { name: "Failed", value: metrics.failed.value, color: "#f45b7a" },
-  ] : [];
+  ] : [], [metrics]);
 
-  const throughputData = pulse ? pulse.map(p => ({ label: p.time, value: p.throughput ?? 0 })) : [];
+  const spark = useMemo(() => ({
+    scheduled: pulse?.slice(-10).map(p => ({ value: p.scheduled })) ?? [],
+    completed: pulse?.slice(-10).map(p => ({ value: p.completed })) ?? [],
+    failed: pulse?.slice(-10).map(p => ({ value: p.failed })) ?? [],
+  }), [pulse]);
 
-  const latencyData = pulse ? pulse.map(p => ({ time: p.time, value: p.latency ?? 0 })) : [];
+  const throughputData = useMemo(
+    () => pulse?.map(p => ({ label: p.time, value: p.throughput ?? 0 })) ?? [],
+    [pulse],
+  );
+
+  const latencyData = useMemo(
+    () => pulse?.map(p => ({ time: p.time, value: Number(p.latency ?? 0) })) ?? [],
+    [pulse],
+  );
 
   return (
     <>
@@ -230,10 +243,10 @@ function DashboardView() {
 
       {/* Stats row */}
       <div className="grid gap-4 xl:grid-cols-4">
-        <StatCard title="Pending" value={metrics ? metrics.active.value : '—'} delta={metrics?.active?.change ? `${metrics.active.change > 0 ? "↗" : "↘"} ${Math.abs(metrics.active.change)}%` : ""} deltaTone={metrics?.active?.change && metrics.active.change > 0 ? "text-rose-300" : "text-emerald-300"} icon={FolderKanban} sparkColor="#7c6df2" sparkData={pulse?.slice(-10).map(p => ({value: p.scheduled})) ?? []} />
-        <StatCard title="Processing" value={metrics ? metrics.processing.value : '—'} delta={metrics?.processing?.change ? `${metrics.processing.change > 0 ? "↗" : "↘"} ${Math.abs(metrics.processing.change)}%` : ""} deltaTone={metrics?.processing?.change && metrics.processing.change > 0 ? "text-rose-300" : "text-emerald-300"} icon={Zap} sparkColor="#4da3ff" sparkData={pulse?.slice(-10).map(p => ({value: p.completed})) ?? []} />
-        <StatCard title="Completed" value={metrics ? metrics.completed.value : '—'} delta={metrics?.completed?.change ? `${metrics.completed.change >= 0 ? "↗" : "↘"} ${Math.abs(metrics.completed.change)}%` : ""} deltaTone={metrics?.completed?.change && metrics.completed.change >= 0 ? "text-emerald-300" : "text-rose-300"} icon={ShieldCheck} sparkColor="#5ed08c" sparkData={pulse?.slice(-10).map(p => ({value: p.completed})) ?? []} />
-        <StatCard title="Dead Letters" value={metrics ? metrics.failed.value : '—'} delta={metrics?.failed?.change ? `${metrics.failed.change > 0 ? "↗" : "↘"} ${Math.abs(metrics.failed.change)}%` : ""} deltaTone={metrics?.failed?.change && metrics.failed.change > 0 ? "text-rose-300" : "text-emerald-300"} icon={TriangleAlert} sparkColor="#f45b7a" sparkData={pulse?.slice(-10).map(p => ({value: p.failed})) ?? []} />
+        <StatCard title="Pending" value={metrics ? metrics.active.value : '—'} delta={metrics?.active?.change ? `${metrics.active.change > 0 ? "↗" : "↘"} ${Math.abs(metrics.active.change)}%` : ""} deltaTone={metrics?.active?.change && metrics.active.change > 0 ? "text-rose-300" : "text-emerald-300"} icon={FolderKanban} sparkColor="#7c6df2" sparkData={spark.scheduled} />
+        <StatCard title="Processing" value={metrics ? metrics.processing.value : '—'} delta={metrics?.processing?.change ? `${metrics.processing.change > 0 ? "↗" : "↘"} ${Math.abs(metrics.processing.change)}%` : ""} deltaTone={metrics?.processing?.change && metrics.processing.change > 0 ? "text-rose-300" : "text-emerald-300"} icon={Zap} sparkColor="#4da3ff" sparkData={spark.completed} />
+        <StatCard title="Completed" value={metrics ? metrics.completed.value : '—'} delta={metrics?.completed?.change ? `${metrics.completed.change >= 0 ? "↗" : "↘"} ${Math.abs(metrics.completed.change)}%` : ""} deltaTone={metrics?.completed?.change && metrics.completed.change >= 0 ? "text-emerald-300" : "text-rose-300"} icon={ShieldCheck} sparkColor="#5ed08c" sparkData={spark.completed} />
+        <StatCard title="Dead Letters" value={metrics ? metrics.failed.value : '—'} delta={metrics?.failed?.change ? `${metrics.failed.change > 0 ? "↗" : "↘"} ${Math.abs(metrics.failed.change)}%` : ""} deltaTone={metrics?.failed?.change && metrics.failed.change > 0 ? "text-rose-300" : "text-emerald-300"} icon={TriangleAlert} sparkColor="#f45b7a" sparkData={spark.failed} />
       </div>
 
       {/* Middle grid */}
@@ -247,25 +260,7 @@ function DashboardView() {
             </div>
           </div>
           <div className="h-[280px] w-full">
-            {pulse ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={pulse}>
-                  <defs>
-                    <linearGradient id="pulseFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#7c6df2" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="#7c6df2" stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-                  <XAxis dataKey="time" tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 12 }} axisLine={false} tickLine={false} width={30} />
-                  <Tooltip contentStyle={{ background: "#0f1427", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, color: "#fff" }} />
-                  <Area type="monotone" dataKey="completed" stroke="#5ed08c" fill="transparent" strokeWidth={2.5} dot={{ r: 2.6, strokeWidth: 0 }} activeDot={{ r: 4 }} isAnimationActive={false} />
-                  <Area type="monotone" dataKey="scheduled" stroke="#7c6df2" fill="url(#pulseFill)" strokeWidth={2.5} dot={{ r: 2.6, strokeWidth: 0 }} activeDot={{ r: 4 }} isAnimationActive={false} />
-                  <Area type="monotone" dataKey="failed" stroke="#f45b7a" fill="transparent" strokeWidth={2.5} dot={{ r: 2.6, strokeWidth: 0 }} activeDot={{ r: 4 }} isAnimationActive={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : <div className="h-full w-full animate-pulse bg-white/5 rounded-xl" />}
+            {pulse ? <PulseChart pulse={pulse} /> : <div className="h-full w-full animate-pulse bg-white/5 rounded-xl" />}
           </div>
           <div className="mt-2 flex items-center justify-center gap-6 text-xs text-white/60">
             <LegendDot color="#5ed08c" label="Completed" />
@@ -344,15 +339,7 @@ function DashboardView() {
           </div>
           <div className="text-sm text-white/55">95th percentile</div>
           <div className="mt-3 h-[180px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={latencyData}>
-                <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-                <XAxis dataKey="time" tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 12 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 12 }} axisLine={false} tickLine={false} width={30} />
-                <Tooltip contentStyle={{ background: "#0f1427", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, color: "#fff" }} />
-                <Line type="monotone" dataKey="value" stroke="#7c6df2" strokeWidth={2.5} dot={{ r: 2.5, strokeWidth: 0 }} isAnimationActive={false} />
-              </ComposedChart>
-            </ResponsiveContainer>
+            <LatencyChart data={latencyData} />
           </div>
         </div>
 
@@ -371,15 +358,7 @@ function DashboardView() {
           </div>
           <div className="text-sm text-white/55">Average per minute</div>
           <div className="mt-3 h-[180px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={throughputData}>
-                <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-                <XAxis dataKey="label" tick={false} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 12 }} axisLine={false} tickLine={false} width={30} />
-                <Tooltip contentStyle={{ background: "#0f1427", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, color: "#fff" }} />
-                <Bar dataKey="value" radius={[6, 6, 0, 0]} fill="#7c6df2" isAnimationActive={false} />
-              </BarChart>
-            </ResponsiveContainer>
+            <ThroughputChart data={throughputData} />
           </div>
         </div>
 
@@ -780,7 +759,57 @@ function EnqueueJobModalWrapper({ isEnqueueOpen, setIsEnqueueOpen }: any) {
   return <EnqueueJobModal isOpen={isEnqueueOpen} onClose={() => setIsEnqueueOpen(false)} onEnqueue={enqueueJob} />;
 }
 
-function StatCard({ title, value, delta, deltaTone, icon: Icon, sparkColor, sparkData }: any) {
+const PulseChart = memo(function PulseChart({ pulse }: { pulse: PulsePoint[] }) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={pulse}>
+        <defs>
+          <linearGradient id="pulseFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#7c6df2" stopOpacity={0.35} />
+            <stop offset="100%" stopColor="#7c6df2" stopOpacity={0.02} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+        <XAxis dataKey="time" tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 12 }} axisLine={false} tickLine={false} />
+        <YAxis tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 12 }} axisLine={false} tickLine={false} width={30} />
+        <Tooltip contentStyle={{ background: "#0f1427", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, color: "#fff" }} />
+        <Area type="monotone" dataKey="completed" stroke="#5ed08c" fill="transparent" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+        <Area type="monotone" dataKey="scheduled" stroke="#7c6df2" fill="url(#pulseFill)" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+        <Area type="monotone" dataKey="failed" stroke="#f45b7a" fill="transparent" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+});
+
+const LatencyChart = memo(function LatencyChart({ data }: { data: { time: string; value: number }[] }) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <ComposedChart data={data}>
+        <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+        <XAxis dataKey="time" tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 12 }} axisLine={false} tickLine={false} />
+        <YAxis tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 12 }} axisLine={false} tickLine={false} width={30} />
+        <Tooltip contentStyle={{ background: "#0f1427", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, color: "#fff" }} />
+        <Line type="monotone" dataKey="value" stroke="#7c6df2" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
+});
+
+const ThroughputChart = memo(function ThroughputChart({ data }: { data: { label: string; value: number }[] }) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={data}>
+        <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+        <XAxis dataKey="label" tick={false} axisLine={false} tickLine={false} />
+        <YAxis tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 12 }} axisLine={false} tickLine={false} width={30} />
+        <Tooltip contentStyle={{ background: "#0f1427", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, color: "#fff" }} />
+        <Bar dataKey="value" radius={[6, 6, 0, 0]} fill="#7c6df2" isAnimationActive={false} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+});
+
+const StatCard = memo(function StatCard({ title, value, delta, deltaTone, icon: Icon, sparkColor, sparkData }: any) {
   return (
     <div className="rounded-2xl border border-white/10 bg-[#111528] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_30px_rgba(0,0,0,0.22)]">
       <div className="flex items-start justify-between gap-4">
@@ -810,7 +839,7 @@ function StatCard({ title, value, delta, deltaTone, icon: Icon, sparkColor, spar
       </div>
     </div>
   );
-}
+});
 
 function SectionTitle({ title, action, onAction }: any) {
   return (

@@ -12,9 +12,11 @@ export class ApiError extends Error {
   }
 }
 
+const REQUEST_TIMEOUT_MS = 12_000;
+
 export const apiClient = {
   async get<T>(path: string): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${path}`);
+    const response = await fetch(`${API_BASE_URL}${path}`, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
       throw new ApiError(response.status, err.error || 'Request failed');
@@ -27,6 +29,7 @@ export const apiClient = {
       method: 'POST',
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
