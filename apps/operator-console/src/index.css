@@ -58,18 +58,12 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .kpi-tick {
-    animation: kpi-tick 160ms ease-out;
+  .kpi-value {
+    font-variant-numeric: tabular-nums;
   }
-}
 
-@keyframes kpi-tick {
-  from { opacity: 0.45; }
-  to { opacity: 1; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .kpi-tick {
-    animation: none;
+  .dashboard-panel {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 280px;
   }
 }

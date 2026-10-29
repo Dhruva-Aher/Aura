@@ -37,16 +37,21 @@ function rememberRecentJob(queryClient: ReturnType<typeof useQueryClient>, job: 
   });
 }
 
+function roundMetric(n: number | undefined, places: number) {
+  const f = 10 ** places;
+  return Math.round((n ?? 0) * f) / f;
+}
+
 function sameMetrics(a: MetricsOverview, b: MetricsOverview) {
   return a.active?.value === b.active?.value
     && a.processing?.value === b.processing?.value
     && a.completed?.value === b.completed?.value
     && a.failed?.value === b.failed?.value
     && a.delayed?.value === b.delayed?.value
-    && a.p95Latency === b.p95Latency
-    && a.throughput === b.throughput
-    && a.latencyChange === b.latencyChange
-    && a.throughputChange === b.throughputChange;
+    && roundMetric(a.p95Latency, 1) === roundMetric(b.p95Latency, 1)
+    && roundMetric(a.throughput, 1) === roundMetric(b.throughput, 1)
+    && roundMetric(a.latencyChange, 1) === roundMetric(b.latencyChange, 1)
+    && roundMetric(a.throughputChange, 0) === roundMetric(b.throughputChange, 0);
 }
 
 interface AuraState {
@@ -106,7 +111,7 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initialDataUpdatedAt: cachedDashboard.pulseAt,
     ...steadyRetry,
     enabled: pulseEnabled,
-    refetchInterval: pollAfterWake(15_000),
+    refetchInterval: pollAfterWake(30_000),
   });
 
   const { data: recentJobs } = useQuery({
@@ -134,7 +139,7 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initialDataUpdatedAt: cachedDashboard.workersAt,
     ...steadyRetry,
     enabled: workersEnabled,
-    refetchInterval: pollAfterWake(20_000),
+    refetchInterval: pollAfterWake(45_000),
   });
 
   const { data: health } = useQuery({
@@ -142,7 +147,7 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
     queryFn: systemService.getHealth,
     ...steadyRetry,
     enabled: healthEnabled,
-    refetchInterval: 60_000,
+    refetchInterval: 90_000,
   });
 
   const enqueueMutation = useMutation({
@@ -193,6 +198,8 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let lastEventAt = Date.now();
     const pendingJobs = new Map<string, Job>();
     let jobTimer: ReturnType<typeof setTimeout> | null = null;
+    let metricsTimer: ReturnType<typeof setTimeout> | null = null;
+    let pendingMetrics: MetricsOverview | null = null;
 
     const mark = () => {
       lastEventAt = Date.now();
@@ -214,15 +221,26 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     };
 
+    const flushMetrics = () => {
+      metricsTimer = null;
+      const data = pendingMetrics;
+      pendingMetrics = null;
+      if (!data?.active || typeof data.active.value !== 'number') return;
+      const prev = queryClient.getQueryData<MetricsOverview>(['metrics']);
+      if (prev && sameMetrics(prev, data)) return;
+      queryClient.setQueryData(['metrics'], data);
+      writeDashboardCache({ metrics: data, metricsAt: Date.now() });
+    };
+
     const onMetrics = (event: Event) => {
       mark();
       try {
         const data = JSON.parse((event as MessageEvent).data) as MetricsOverview;
         if (!data?.active || typeof data.active.value !== 'number') return;
-        const prev = queryClient.getQueryData<MetricsOverview>(['metrics']);
-        if (prev && sameMetrics(prev, data)) return;
-        queryClient.setQueryData(['metrics'], data);
-        writeDashboardCache({ metrics: data, metricsAt: Date.now() });
+        pendingMetrics = data;
+        if (metricsTimer) return;
+        // Paint KPI updates at most ~1/s so SSE ticks do not thrash Recharts.
+        metricsTimer = setTimeout(flushMetrics, 1_000);
       } catch {
         // Ignore a malformed metrics frame.
       }
@@ -235,7 +253,7 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!job?.id) return;
         pendingJobs.set(job.id, job);
         if (jobTimer) return;
-        jobTimer = setTimeout(flushJobs, 300);
+        jobTimer = setTimeout(flushJobs, 1_000);
       } catch {
         // Ignore a malformed job frame.
       }
@@ -254,6 +272,7 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       clearInterval(watch);
       if (jobTimer) clearTimeout(jobTimer);
+      if (metricsTimer) clearTimeout(metricsTimer);
       evtSource.close();
     };
   }, [queryClient, streamEpoch]);

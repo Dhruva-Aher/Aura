@@ -242,9 +242,9 @@ const KpiStrip = memo(function KpiStrip() {
   const metrics = useMetrics();
   const pulse = usePulse();
   const spark = useMemo(() => ({
-    scheduled: pulse?.slice(-10).map(p => ({ value: p.scheduled })) ?? [],
-    completed: pulse?.slice(-10).map(p => ({ value: p.completed })) ?? [],
-    failed: pulse?.slice(-10).map(p => ({ value: p.failed })) ?? [],
+    scheduled: pulse?.slice(-10).map(p => p.scheduled) ?? [],
+    completed: pulse?.slice(-10).map(p => p.completed) ?? [],
+    failed: pulse?.slice(-10).map(p => p.failed) ?? [],
   }), [pulse]);
   return (
       <div className="grid gap-4 xl:grid-cols-4">
@@ -258,6 +258,7 @@ const KpiStrip = memo(function KpiStrip() {
 
 const PulsePanel = memo(function PulsePanel() {
   const pulse = usePulse();
+  const chartPulse = useMemo(() => pulse?.slice(-24) ?? [], [pulse]);
   const navigate = useNavigate();
   return (
         <div className="rounded-2xl border border-white/10 bg-[#111528] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_30px_rgba(0,0,0,0.22)]">
@@ -269,7 +270,7 @@ const PulsePanel = memo(function PulsePanel() {
             </div>
           </div>
           <div className="h-[280px] w-full">
-            {pulse ? <PulseChart pulse={pulse} /> : <div className="h-full w-full animate-pulse bg-white/5 rounded-xl" />}
+            {pulse ? <PulseChart pulse={chartPulse} /> : <div className="h-full w-full animate-pulse bg-white/5 rounded-xl" />}
           </div>
           <div className="mt-2 flex items-center justify-center gap-6 text-xs text-white/60">
             <LegendDot color="#5ed08c" label="Completed" />
@@ -366,11 +367,11 @@ const LatencyPanel = memo(function LatencyPanel() {
   const metrics = useMetrics();
   const pulse = usePulse();
   const latencyData = useMemo(
-    () => pulse?.map(p => ({ time: p.time, value: Number(p.latency ?? 0) })) ?? [],
+    () => pulse?.slice(-24).map(p => ({ time: p.time, value: Number(p.latency ?? 0) })) ?? [],
     [pulse],
   );
   return (
-        <div className="rounded-2xl border border-white/10 bg-[#111528] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_30px_rgba(0,0,0,0.22)]">
+        <div className="dashboard-panel rounded-2xl border border-white/10 bg-[#111528] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_30px_rgba(0,0,0,0.22)]">
           <div className="mb-3 flex items-center justify-between">
             <SectionTitle title="Job Latency (Queue Wait Time)" />
             
@@ -395,11 +396,11 @@ const ThroughputPanel = memo(function ThroughputPanel() {
   const metrics = useMetrics();
   const pulse = usePulse();
   const throughputData = useMemo(
-    () => pulse?.map(p => ({ label: p.time, value: p.throughput ?? 0 })) ?? [],
+    () => pulse?.slice(-24).map(p => ({ label: p.time, value: p.throughput ?? 0 })) ?? [],
     [pulse],
   );
   return (
-        <div className="rounded-2xl border border-white/10 bg-[#111528] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_30px_rgba(0,0,0,0.22)]">
+        <div className="dashboard-panel rounded-2xl border border-white/10 bg-[#111528] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_30px_rgba(0,0,0,0.22)]">
           <div className="mb-3 flex items-center justify-between">
             <SectionTitle title="Throughput" />
             
@@ -424,7 +425,7 @@ const HealthPanel = memo(function HealthPanel() {
   const health = useHealth();
   const navigate = useNavigate();
   return (
-        <div className="rounded-2xl border border-white/10 bg-[#111528] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_30px_rgba(0,0,0,0.22)]">
+        <div className="dashboard-panel rounded-2xl border border-white/10 bg-[#111528] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_30px_rgba(0,0,0,0.22)]">
           <div className="mb-3 flex items-center justify-between">
             <SectionTitle title="System Health" />
             <div className="text-sm font-medium text-emerald-300">All systems operational</div>
@@ -448,8 +449,12 @@ const HealthPanel = memo(function HealthPanel() {
 const WorkersPanel = memo(function WorkersPanel() {
   const workers = useWorkers();
   const online = workers?.filter(w => w.status === 'ONLINE').length ?? 0;
+  const rows = useMemo(() => {
+    if (!workers) return null;
+    return [...workers].sort((a, b) => Number(b.status === 'ONLINE') - Number(a.status === 'ONLINE')).slice(0, 8);
+  }, [workers]);
   return (
-        <div className="rounded-2xl border border-white/10 bg-[#111528] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_30px_rgba(0,0,0,0.22)]">
+        <div className="dashboard-panel rounded-2xl border border-white/10 bg-[#111528] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_30px_rgba(0,0,0,0.22)]">
           <div className="mb-3 flex items-center justify-between">
             <SectionTitle title="Active Workers" />
             <div className="text-sm text-emerald-300">{online} online</div>
@@ -467,7 +472,7 @@ const WorkersPanel = memo(function WorkersPanel() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {workers ? workers.map((w) => (
+                {rows ? rows.map((w) => (
                   <tr key={w.id} className="hover:bg-white/[0.04] transition">
                     <td className="px-4 py-3 text-white/85 font-mono text-xs">{w.id}</td>
                     <td className="px-4 py-3 text-white/60">{w.pool}</td>
@@ -845,7 +850,7 @@ const PulseChart = memo(function PulseChart({ pulse }: { pulse: PulsePoint[] }) 
           </linearGradient>
         </defs>
         <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-        <XAxis dataKey="time" tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 12 }} axisLine={false} tickLine={false} />
+        <XAxis dataKey="time" tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 12 }} axisLine={false} tickLine={false} minTickGap={40} />
         <YAxis tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 12 }} axisLine={false} tickLine={false} width={30} />
         <Tooltip contentStyle={{ background: "#0f1427", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, color: "#fff" }} />
         <Area type="monotone" dataKey="completed" stroke="#5ed08c" fill="transparent" strokeWidth={2.5} dot={false} isAnimationActive={false} />
@@ -861,7 +866,7 @@ const LatencyChart = memo(function LatencyChart({ data }: { data: { time: string
     <ResponsiveContainer width="100%" height="100%">
       <ComposedChart data={data}>
         <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-        <XAxis dataKey="time" tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 12 }} axisLine={false} tickLine={false} />
+        <XAxis dataKey="time" tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 12 }} axisLine={false} tickLine={false} minTickGap={40} />
         <YAxis tick={{ fill: "rgba(255,255,255,0.45)", fontSize: 12 }} axisLine={false} tickLine={false} width={30} />
         <Tooltip contentStyle={{ background: "#0f1427", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, color: "#fff" }} />
         <Line type="monotone" dataKey="value" stroke="#7c6df2" strokeWidth={2.5} dot={false} isAnimationActive={false} />
@@ -884,13 +889,39 @@ const ThroughputChart = memo(function ThroughputChart({ data }: { data: { label:
   );
 });
 
+const Sparkline = memo(function Sparkline({ values, color }: { values: number[]; color: string }) {
+  const points = values.length > 1 ? values : [0, 0];
+  let min = points[0];
+  let max = points[0];
+  for (const v of points) {
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  const span = max - min || 1;
+  const w = 96;
+  const h = 40;
+  const d = points
+    .map((v, i) => {
+      const x = (i / Math.max(points.length - 1, 1)) * w;
+      const y = h - ((v - min) / span) * (h - 4) - 2;
+      return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(' ');
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
+      <path d={d} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+});
+
 const StatCard = memo(function StatCard({ title, value, delta, deltaTone, icon: Icon, sparkColor, sparkData }: any) {
+  const display = typeof value === 'number' ? value.toLocaleString() : value;
   return (
     <div className="rounded-2xl border border-white/10 bg-[#111528] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_10px_30px_rgba(0,0,0,0.22)]">
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="text-sm text-white/60">{title}</div>
-          <div className="mt-2 text-4xl font-semibold tracking-tight text-white tabular-nums kpi-tick" key={String(value)}>{value.toLocaleString()}</div>
+          <div className="mt-2 text-4xl font-semibold tracking-tight text-white tabular-nums kpi-value">{display}</div>
         </div>
         <div className="grid h-12 w-12 place-items-center rounded-full bg-white/5 text-white/80 ring-1 ring-white/10">
           <Icon className="h-5 w-5" />
@@ -898,18 +929,8 @@ const StatCard = memo(function StatCard({ title, value, delta, deltaTone, icon: 
       </div>
       <div className="mt-4 flex items-end justify-between gap-3">
         {delta ? <div className={`text-sm font-medium ${deltaTone}`}>{delta} <span className="text-white/45 font-normal">vs last hour</span></div> : <div />}
-        <div className="h-12 w-24">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={sparkData.length ? sparkData : [{value:0},{value:0}]}>
-              <defs>
-                <linearGradient id={`g-${title.replace(/\s+/g, '')}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={sparkColor} stopOpacity={0.45} />
-                  <stop offset="95%" stopColor={sparkColor} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <Area type="monotone" dataKey="value" stroke={sparkColor} fill={`url(#g-${title.replace(/\s+/g, '')})`} strokeWidth={2} dot={false} isAnimationActive={false} />
-            </AreaChart>
-          </ResponsiveContainer>
+        <div className="h-10 w-24">
+          <Sparkline values={sparkData} color={sparkColor} />
         </div>
       </div>
     </div>

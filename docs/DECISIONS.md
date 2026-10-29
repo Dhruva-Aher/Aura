@@ -430,6 +430,17 @@ Documented in [crash-recovery.md](./crash-recovery.md): worker crash → reap; s
 | **Tradeoffs** | The first visit still waits for Render to boot. Pulse, workers, and health appear a few seconds after the KPI numbers. Health is a minute stale. Jobs and dead-letter pages ask for 25 rows at a time so a slow free-tier response can finish inside the 12s request limit; a timed-out page says it failed instead of showing 0. |
 | **Evidence** | `AuraContext.tsx`, `App.tsx`, `index.css`. Local console against the live API: overview KPIs rendered (completed 1,404), jobs list returned 1,740 in 151ms at 25 rows, dead letters returned 336 in 167ms. Not deployed. |
 
+### D-P10-08 — Cut client redraw cost without more API calls (`IMPLEMENTED`)
+
+| | |
+|--|--|
+| **Context** | The console felt laggy even after staggering fetches. Live metrics SSE and Recharts sparklines were redrawing the KPI strip often, while pulse/workers/health polls still refreshed charts and a long worker table. |
+| **Decision** | Do not add requests. Apply SSE metrics to React at most once per second, batch job-list patches to 1s, and ignore float noise in metric equality. Replace the four KPI Recharts sparklines with a tiny SVG path. Cap chart series to the last 24 points. Show at most eight worker rows on the overview. Slow pulse to 30s, workers to 45s, health to 90s (fewer polls). Defer paint of lower panels with `content-visibility`. |
+| **Why** | The hitch was main-thread chart work and frequent React updates, not missing data. |
+| **Alternatives** | Keep Recharts sparklines and only memo harder. Rejected: ResponsiveContainer still pays layout cost on every parent update. |
+| **Tradeoffs** | KPI digits and recent jobs can lag the stream by up to ~1s. Pulse and worker tables move less often. |
+| **Evidence** | `AuraContext.tsx`, `App.tsx`, `index.css`. Local against live API: KPIs rendered, 4 Recharts wrappers left (pulse/latency/throughput/queue), 0 long tasks and 3 DOM mutations over 5s steady. Not deployed. |
+
 ---
 
 ## P11. Testing & load
