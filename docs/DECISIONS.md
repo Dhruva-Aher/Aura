@@ -441,6 +441,17 @@ Documented in [crash-recovery.md](./crash-recovery.md): worker crash → reap; s
 | **Tradeoffs** | KPI digits and recent jobs can lag the stream by up to ~1s. Pulse and worker tables move less often. |
 | **Evidence** | `AuraContext.tsx`, `App.tsx`, `index.css`. Local against live API: KPIs rendered, 4 Recharts wrappers left (pulse/latency/throughput/queue), 0 long tasks and 3 DOM mutations over 5s steady. Not deployed. |
 
+### D-P10-09 — Faster first paint without more steady polls (`IMPLEMENTED`)
+
+| | |
+|--|--|
+| **Context** | After D-P10-07/08 the page still felt slow. Warm API calls are ~130ms, but secondary fetches waited 0.6–4.5s after metrics, and the dashboard cache lived only in `sessionStorage`, so every new tab started blank. |
+| **Decision** | Fetch overview and recent jobs together. Pulse / workers / health wait at most 250 / 500 / 800ms on a cold visit, and 0ms when that slice is already cached. Persist the dashboard cache in `localStorage` for 30 minutes (including health) so return visits paint numbers immediately while a quiet refresh runs. Steady poll intervals stay at the D-P10-08 values. |
+| **Why** | Perceived load time was dominated by artificial delay and empty cache, not by API throughput. |
+| **Alternatives** | Keep the long stagger for free-tier safety. Rejected for warm API: two light GETs in parallel are fine; the expensive stampede was five heavy calls plus retries. |
+| **Tradeoffs** | A true Render cold start can still open with two concurrent wake requests. Cache can show up to 30 minutes of stale counts for one paint. |
+| **Evidence** | `AuraContext.tsx`, `dashboardCache.ts`. Local cold load vs live API: overview+recent started together at 54ms; pulse/workers/health at 508/757/1058ms; KPIs and jobs populated without the old multi-second wait. Not deployed. |
+
 ---
 
 ## P11. Testing & load

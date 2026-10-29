@@ -20,9 +20,13 @@ function pollAfterWake(steadyMs: number | false) {
 }
 
 function useDelayedEnabled(ready: boolean, delayMs: number) {
-  const [enabled, setEnabled] = useState(false);
+  const [enabled, setEnabled] = useState(() => ready && delayMs <= 0);
   useEffect(() => {
     if (!ready || enabled) return;
+    if (delayMs <= 0) {
+      setEnabled(true);
+      return;
+    }
     const timer = setTimeout(() => setEnabled(true), delayMs);
     return () => clearTimeout(timer);
   }, [ready, delayMs, enabled]);
@@ -90,15 +94,38 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refetchInterval: pollAfterWake(false),
   });
 
+  // KPIs + recent jobs load together. Heavier panels wait briefly only on a cold
+  // visit with no cache — never a multi-second artificial pause when warm.
   const metricsReady = metrics != null;
-  const jobsEnabled = useDelayedEnabled(metricsReady, 600);
-  const pulseEnabled = useDelayedEnabled(metricsReady, 1_600);
-  const workersEnabled = useDelayedEnabled(metricsReady, 2_800);
-  const healthEnabled = useDelayedEnabled(metricsReady, 4_500);
+  const pulseEnabled = useDelayedEnabled(
+    metricsReady || cachedDashboard.pulse != null,
+    cachedDashboard.pulse != null ? 0 : 250,
+  );
+  const workersEnabled = useDelayedEnabled(
+    metricsReady || cachedDashboard.workers != null,
+    cachedDashboard.workers != null ? 0 : 500,
+  );
+  const healthEnabled = useDelayedEnabled(
+    metricsReady || cachedDashboard.health != null,
+    cachedDashboard.health != null ? 0 : 800,
+  );
   const steadyRetry = {
     retry: 3,
     retryDelay: (attempt: number) => Math.min(1000 * 2 ** attempt, 8_000),
   } as const;
+
+  const { data: recentJobs } = useQuery({
+    queryKey: ['recentJobs'],
+    queryFn: async () => {
+      const data = await jobsService.getRecent();
+      writeDashboardCache({ recentJobs: data, recentJobsAt: Date.now() });
+      return data;
+    },
+    initialData: cachedDashboard.recentJobs as Job[] | undefined,
+    initialDataUpdatedAt: cachedDashboard.recentJobsAt,
+    ...steadyRetry,
+    refetchInterval: pollAfterWake(false),
+  });
 
   const { data: pulse } = useQuery({
     queryKey: ['pulse'],
@@ -112,20 +139,6 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ...steadyRetry,
     enabled: pulseEnabled,
     refetchInterval: pollAfterWake(30_000),
-  });
-
-  const { data: recentJobs } = useQuery({
-    queryKey: ['recentJobs'],
-    queryFn: async () => {
-      const data = await jobsService.getRecent();
-      writeDashboardCache({ recentJobs: data, recentJobsAt: Date.now() });
-      return data;
-    },
-    initialData: cachedDashboard.recentJobs as Job[] | undefined,
-    initialDataUpdatedAt: cachedDashboard.recentJobsAt,
-    ...steadyRetry,
-    enabled: jobsEnabled,
-    refetchInterval: pollAfterWake(false),
   });
 
   const { data: workers } = useQuery({
@@ -144,7 +157,13 @@ export const AuraProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const { data: health } = useQuery({
     queryKey: ['health'],
-    queryFn: systemService.getHealth,
+    queryFn: async () => {
+      const data = await systemService.getHealth();
+      writeDashboardCache({ health: data, healthAt: Date.now() });
+      return data;
+    },
+    initialData: cachedDashboard.health as SystemHealth[] | undefined,
+    initialDataUpdatedAt: cachedDashboard.healthAt,
     ...steadyRetry,
     enabled: healthEnabled,
     refetchInterval: 90_000,
